@@ -15,12 +15,14 @@
 module GDAL.Internal.Types (
     GDAL
   , XY (..)
+  , Envelope (..)
   , Size
   , BlockIx
   , ReleaseKey
   , AccessMode
   , ReadWrite
   , ReadOnly
+  , envelopeSize
   , runGDAL
   , execGDAL
   , allocate
@@ -171,6 +173,19 @@ instance Storable a => Storable (XY a) where
   peek ptr = XY <$> peek ptr' <*> peekElemOff ptr' 1
     where ptr' = castPtr ptr
   {-# INLINE peek #-}
+
+data Envelope a =
+  Envelope {
+    envelopeMin :: !(XY a)
+  , envelopeMax :: !(XY a)
+  } deriving (Eq, Show, Read, Functor, Typeable)
+
+instance NFData a => NFData (Envelope a) where
+  rnf (Envelope a b) = rnf a `seq` rnf b `seq` ()
+
+envelopeSize :: Num a => Envelope a -> XY a
+envelopeSize w = liftA2 (-) (envelopeMax w) (envelopeMin w)
+{-# INLINE envelopeSize #-}
 
 newtype GDAL s a = GDAL (ResourceT IO a)
 

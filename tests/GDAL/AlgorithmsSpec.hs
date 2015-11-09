@@ -8,7 +8,7 @@ module GDAL.AlgorithmsSpec (main, spec) where
 import Data.Default (def)
 import Data.Monoid (mempty)
 import Data.Proxy (Proxy(Proxy))
-import qualified Data.Vector.Unboxed as U
+import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Storable as St
 
 import Control.Applicative ((<$>), (<*>))
@@ -40,14 +40,14 @@ spec = setupAndTeardown $ do
           rasterizeLayersBuf
             (sequence [mkLayer])
             DefaultTransformer
-            0
+            (0:: Double)
             1
             []
             Nothing
             srs4326
             size
             (northUpGeotransform size env)
-     (v :: U.Vector (Value Double)) `shouldSatisfy` U.all (==NoData)
+     v `shouldSatisfy` G.all (==NoData)
 
    it "burns value passed as parameter" $ do
      ds <- OGR.createMem []
@@ -73,7 +73,7 @@ spec = setupAndTeardown $ do
             srs4326
             size
             (northUpGeotransform size env)
-     v `shouldSatisfy` U.any (==(Value burnValue))
+     v `shouldSatisfy` G.any (==(Value burnValue))
 
    it "burns attribute from feature" $ do
      ds <- OGR.createMem []
@@ -98,7 +98,7 @@ spec = setupAndTeardown $ do
             srs4326
             size
             (northUpGeotransform size env)
-     v `shouldSatisfy` U.any (==(Value (tfField1 feat)))
+     v `shouldSatisfy` G.any (==(Value (tfField1 feat)))
 
    it "transforms geometries" $ do
      ds <- OGR.createMem []
@@ -126,7 +126,7 @@ spec = setupAndTeardown $ do
             srs23030
             size
             (northUpGeotransform size env4326)
-     v `shouldSatisfy` U.all (==NoData)
+     v `shouldSatisfy` G.all (==NoData)
 
      w <- runOGR $
           rasterizeLayersBuf
@@ -139,7 +139,7 @@ spec = setupAndTeardown $ do
             srs23030
             size
             (northUpGeotransform size env23030)
-     w `shouldSatisfy` U.any (==(Value burnValue))
+     w `shouldSatisfy` G.any (==(Value burnValue))
 
 
   createGridIOSpec (SGA (def :: GridInverseDistanceToAPower))
@@ -158,7 +158,7 @@ spec = setupAndTeardown $ do
                  []
                  (Envelope (-500) 500)
                  (XY 100 100)
-        vec `shouldSatisfy` U.all (==(Value 0 :: Value Double))
+        vec `shouldSatisfy` G.all (==(Value 0 :: Value Double))
 
       itIO "produces a vector with some values > 0" $ do
         vec <- createGridIO
@@ -168,7 +168,7 @@ spec = setupAndTeardown $ do
                  [GP (XY 0 0) 10]
                  (Envelope (-500) 500)
                  (XY 100 100)
-        vec `shouldSatisfy` U.any (>(Value 0 :: Value Double))
+        vec `shouldSatisfy` G.any (>(Value 0 :: Value Double))
 
 
     describeWith (def {dmType = MetricMaximum}) $ \opts -> do
@@ -181,7 +181,7 @@ spec = setupAndTeardown $ do
                  []
                  (Envelope (-500) 500)
                  (XY 100 100)
-        vec `shouldSatisfy` U.all (==(NoData :: Value Double))
+        vec `shouldSatisfy` G.all (==(NoData :: Value Double))
 
       itIO "produces a vector that contains the maximum value" $ do
         vec <- createGridIO
@@ -192,8 +192,8 @@ spec = setupAndTeardown $ do
                  , GP (XY 0 0) 2]
                  (Envelope (-500) 500)
                  (XY 100 100)
-        vec `shouldSatisfy` U.any (==(Value 10 :: Value Double))
-        vec `shouldSatisfy` U.all (/=(Value 2 :: Value Double))
+        vec `shouldSatisfy` G.any (==(Value 10 :: Value Double))
+        vec `shouldSatisfy` G.all (/=(Value 2 :: Value Double))
 
     describeWith (def {dmType = MetricMinimum}) $ \opts -> do
 
@@ -205,7 +205,7 @@ spec = setupAndTeardown $ do
                  []
                  (Envelope (-500) 500)
                  (XY 100 100)
-        vec `shouldSatisfy` U.all (==(NoData :: Value Double))
+        vec `shouldSatisfy` G.all (==(NoData :: Value Double))
 
       itIO "produces a vector that contains the minimum value" $ do
         vec <- createGridIO
@@ -216,8 +216,8 @@ spec = setupAndTeardown $ do
                  , GP (XY 0 0) 2]
                  (Envelope (-500) 500)
                  (XY 100 100)
-        vec `shouldSatisfy` U.any (==(Value 2 :: Value Double))
-        vec `shouldSatisfy` U.all (/=(Value 10 :: Value Double))
+        vec `shouldSatisfy` G.any (==(Value 2 :: Value Double))
+        vec `shouldSatisfy` G.all (/=(Value 10 :: Value Double))
 
   describe "contourGenerateVectorIO" $ do
 
@@ -276,7 +276,7 @@ createGridIOSpec (SGA opts) = do
                []
                (Envelope (-500) 500)
                (XY 100 100)
-      vec `shouldSatisfy` U.all (==(NoData :: Value Double))
+      vec `shouldSatisfy` G.all (==(NoData :: Value Double))
 
     itIO "produces a vector with values when some points" $ do
       vec <- createGridIO
@@ -286,7 +286,7 @@ createGridIOSpec (SGA opts) = do
                [GP (XY 0 0) 10]
                (Envelope (-500) 500)
                (XY 100 100)
-      vec `shouldSatisfy` U.any (/=(NoData :: Value Double))
+      vec `shouldSatisfy` G.any (/=(NoData :: Value Double))
 
 
 

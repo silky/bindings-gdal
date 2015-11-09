@@ -25,20 +25,30 @@ library
   exposed-modules:   OGR
                    , OSR
                    , GDAL
+                   , GDAL.Internal.CPLProgress
+                   , GDAL.Internal.CPLString
+                   , GDAL.Internal.CPLError
+                   , GDAL.Internal.GDAL.Types
+                   , GDAL.Band.Generic
+                   , GDAL.Band.Generic.Internal
+                   , GDAL.Band.Masked.Base
+                   , GDAL.Band.Native
+                   , GDAL.Band.Masked.Native
+                   , GDAL.Band.Translated
+                   , GDAL.Band.Masked.Translated
                    , GDAL.Algorithms
                    , GDAL.Warper
 
                    , GDAL.Internal.Types
                    , GDAL.Internal.Types.Pair
                    , GDAL.Internal.Types.Value
-                   , GDAL.Internal.Types.Vector
-                   , GDAL.Internal.Types.Vector.Mutable
+                   , GDAL.Internal.Vector.Translated
+                   , GDAL.Internal.Vector.Masked
                    , GDAL.Internal.DataType
+                   , GDAL.Internal.DataType.TH
+                   , GDAL.Internal.DataType.Instances
                    , GDAL.Internal.Util
                    , GDAL.Internal.Common
-                   , GDAL.Internal.CPLString
-                   , GDAL.Internal.CPLError
-                   , GDAL.Internal.CPLProgress
                    , GDAL.Internal.CPLConv
                    , GDAL.Internal.GCP
                    , GDAL.Internal.OGRError
@@ -51,7 +61,7 @@ library
                    , GDAL.Internal.Algorithms
                    , GDAL.Internal.Warper
   build-depends:     base >=4.5 && < 5
-                   , vector
+                   , vector >= 0.11
                    , conduit
                    , bytestring
                    , text
@@ -77,9 +87,6 @@ library
                  , cbits/contourwriter.c
   includes:        cbits/errorhandler.h
                  , cbits/contourwriter.h
-
-  if impl(ghc >= 7.10.0)
-    cpp-options: -DSTORABLE_COMPLEX
 
 test-suite spec
   type:             exitcode-stdio-1.0
@@ -115,8 +122,6 @@ test-suite spec
   ghc-options:     -Wall -rtsopts -threaded -with-rtsopts=-N
   default-extensions: CPP
   include-dirs:    src/GDAL/Internal/
-  if impl(ghc >= 7.10.0)
-    cpp-options: -DSTORABLE_COMPLEX
 
 executable ogrinfo-hs
   build-depends:       base

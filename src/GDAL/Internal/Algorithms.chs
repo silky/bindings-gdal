@@ -1,5 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ExistentialQuantification #-}
@@ -37,6 +39,22 @@ module GDAL.Internal.Algorithms (
 
 {#context lib = "gdal" prefix = "GDAL" #}
 
+import GDAL.Internal.Util (fromEnumC)
+import GDAL.Internal.Types
+import GDAL.Internal.Types.Value
+import GDAL.Internal.DataType (GDALType(..))
+import GDAL.Band.Generic
+import qualified GDAL.Internal.DataType as DT
+import qualified GDAL.Internal.Vector.Masked as MV
+{#import GDAL.Internal.CPLString#}
+{#import GDAL.Internal.OSR #}
+{#import GDAL.Internal.CPLProgress#}
+{#import GDAL.Internal.OGR#}
+{#import GDAL.Internal.OGRGeometry#}
+{#import GDAL.Internal.CPLError#}
+{#import GDAL.Internal.GDAL#}
+{#import GDAL.Internal.GDAL.Types#}
+
 import Control.Applicative ((<$>), (<*>), pure)
 import Control.Monad.Catch (
     Exception(..)
@@ -52,11 +70,9 @@ import Data.Default (Default(..))
 import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Typeable (Typeable)
-import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as GM
 import qualified Data.Vector.Storable as St
-import qualified Data.Vector.Storable.Mutable as Stm
 
 import Foreign.C.Types (CDouble(..), CInt(..), CUInt(..), CChar(..))
 import Foreign.Marshal.Utils (fromBool)
@@ -75,17 +91,6 @@ import Foreign.Storable (Storable(..))
 
 import System.IO.Unsafe (unsafePerformIO)
 
-import GDAL.Internal.Util (fromEnumC)
-import GDAL.Internal.Types
-import GDAL.Internal.Types.Value
-import GDAL.Internal.Types.Vector.Mutable (unsafeWithDataType)
-{#import GDAL.Internal.CPLString#}
-{#import GDAL.Internal.OSR #}
-{#import GDAL.Internal.CPLProgress#}
-{#import GDAL.Internal.OGR#}
-{#import GDAL.Internal.OGRGeometry#}
-{#import GDAL.Internal.CPLError#}
-{#import GDAL.Internal.GDAL#}
 
 #include "gdal_alg.h"
 #include "contourwriter.h"
@@ -278,7 +283,7 @@ foreign import ccall "gdal_alg.h &GDALGenImgProjTransform"
 -- ############################################################################
 
 rasterizeLayersBuf
-  :: GDALType a
+  :: forall s l a b. (Eq a, GDALType a)
   => GDAL s [ROLayer s l b]
   -> SomeTransformer s
   -> a
@@ -288,7 +293,7 @@ rasterizeLayersBuf
   -> SpatialReference
   -> Size
   -> Geotransform
-  -> OGR s l (U.Vector (Value a))
+  -> OGR s l (MV.Vector DT.Vector (Value a))
 rasterizeLayersBuf getLayers mTransformer nodataValue
                    burnValue options progressFun
                    srs size geotransform =
@@ -300,16 +305,16 @@ rasterizeLayersBuf getLayers mTransformer nodataValue
   withOptionList options $ \opts ->
   withTransformerAndArg mTransformer (Just geotransform) $ \trans tArg ->
   with geotransform $ \gt -> do
-    vec <- GM.replicate (sizeLen size) nodataValue
-    unsafeWithDataType vec $ \dt vecPtr ->
+    vec <- GM.replicate (sizeLen size) nodataValue :: IO (DT.IOVector a)
+    unsafeAsNativeM vec $ \dt vecPtr ->
       checkCPLError "RasterizeLayersBuf" $
       {#call GDALRasterizeLayersBuf as ^#}
         (castPtr vecPtr) nx ny (fromEnumC dt) 0 0 (fromIntegral len)
         lPtrPtr srsPtr (castPtr gt) trans
         tArg bValue opts pFun nullPtr
-    liftM (mkValueUVector nodataValue) (G.unsafeFreeze vec)
+    liftM (MV.newWithNoData nodataValue) (G.unsafeFreeze vec)
   where
-    bValue    = convertGType burnValue
+    bValue    = gToReal burnValue
     XY nx ny  = fmap fromIntegral size
 
 
@@ -326,28 +331,28 @@ class (Storable a, Typeable a, Default a, Show a) => GridAlgorithm a where
   setNodata     :: Ptr a -> CDouble -> IO ()
 
 createGridIO
-  :: GridAlgorithm opts
+  :: (Eq a, GDALType a, GridAlgorithm opts)
   => opts
-  -> Double
+  -> a
   -> Maybe ProgressFun
   -> St.Vector GridPoint
   -> EnvelopeReal
   -> Size
-  -> IO (U.Vector (Value Double))
+  -> IO (MV.Vector DT.Vector (Value a))
 createGridIO options noDataVal progressFun points envelope size =
   withProgressFun "createGridIO" progressFun $ \pFun ->
   withErrorHandler $
   with options $ \opts -> do
-    setNodata opts (realToFrac noDataVal)
-    xs <- G.unsafeThaw (St.unsafeCast (St.map (px . gpXY) points))
-    ys <- G.unsafeThaw (St.unsafeCast (St.map (py . gpXY) points))
-    zs <- G.unsafeThaw (St.unsafeCast (St.map gpZ         points))
-    out <- GM.unsafeNew (sizeLen size)
+    setNodata opts (gToReal noDataVal)
+    let xs = St.unsafeCast (St.map (px . gpXY) points)
+        ys = St.unsafeCast (St.map (py . gpXY) points)
+        zs = St.unsafeCast (St.map gpZ         points)
+    out <- newMVector GDT_Float64 (sizeLen size)
     checkCPLError "GDALGridCreate" $
-      Stm.unsafeWith xs $ \pXs ->
-      Stm.unsafeWith ys $ \pYs ->
-      Stm.unsafeWith zs $ \pZs ->
-      unsafeWithDataType out $ \gtype pOut ->
+      St.unsafeWith xs $ \pXs ->
+      St.unsafeWith ys $ \pYs ->
+      St.unsafeWith zs $ \pZs ->
+      unsafeAsNativeM out $ \dt pOut ->
       {#call GDALGridCreate as ^#}
         (fromEnumC (gridAlgorithm options))
         (castPtr opts)
@@ -361,17 +366,20 @@ createGridIO options noDataVal progressFun points envelope size =
         y1
         nx
         ny
-        (fromEnumC gtype)
+        (fromEnumC dt)
         pOut
         pFun
         nullPtr
-    liftM (mkValueUVector noDataVal) (G.unsafeFreeze out)
+    liftM (MV.newWithNoData noDataVal) (G.unsafeFreeze out)
   where
     XY nx ny                       = fmap fromIntegral size
     Envelope (XY x0 y0) (XY x1 y1) = fmap realToFrac envelope
 {-# INLINE createGridIO #-}
 
 
+createGrid = undefined
+
+{-
 createGrid
   :: GridAlgorithm opts
   => opts
@@ -385,6 +393,7 @@ createGrid options noDataVal points envelope =
   try .
   createGridIO options noDataVal Nothing points envelope
 {-# INLINE createGrid #-}
+-}
 
 
 data GridPoint =
@@ -602,8 +611,9 @@ instance Storable GridDataMetrics where
 -- ############################################################################
 
 computeProximity
-  :: Band s a t
-  -> RWBand s a
+  :: (Band b s a t, Band b' s a t', t' ~ ReadWrite)
+  => b s a t
+  -> b' s a t'
   -> OptionList
   -> Maybe ProgressFun
   -> GDAL s ()
@@ -613,8 +623,8 @@ computeProximity srcBand prxBand options progressFun =
   withProgressFun "computeProximity" progressFun $ \pFun ->
   checkCPLError "computeProximity" $
   {#call GDALComputeProximity as ^#}
-    (unBand srcBand)
-    (unBand prxBand)
+    (bandH srcBand)
+    (bandH prxBand)
     opts
     pFun
     nullPtr

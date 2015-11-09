@@ -17,6 +17,26 @@ module GDAL.Internal.Warper (
 ) where
 
 {#context lib = "gdal" prefix = "GDAL" #}
+#include "gdalwarper.h"
+
+
+import GDAL.Internal.Types
+import GDAL.Internal.GDAL.Types
+import GDAL.Band.Generic (bandCount)
+import GDAL.Band.Generic.Internal (
+    setBandNodataValueAsDouble
+  , bandNodataValueAsDouble
+  , getBandH
+  )
+import GDAL.Internal.Util (fromEnumC)
+import GDAL.Internal.CPLConv
+{#import GDAL.Internal.Algorithms #}
+{#import GDAL.Internal.CPLError #}
+{#import GDAL.Internal.CPLString #}
+{#import GDAL.Internal.CPLProgress #}
+{#import GDAL.Internal.OSR #}
+{#import GDAL.Internal.OGRGeometry #}
+{#import GDAL.Internal.GDAL #}
 
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad (when, forM_, forM, liftM)
@@ -35,18 +55,6 @@ import Foreign.Ptr (
 import Foreign.Marshal.Utils (with)
 import Foreign.Storable (Storable(..))
 
-import GDAL.Internal.Types
-import GDAL.Internal.Util (fromEnumC)
-import GDAL.Internal.CPLConv
-{#import GDAL.Internal.Algorithms #}
-{#import GDAL.Internal.CPLError #}
-{#import GDAL.Internal.CPLString #}
-{#import GDAL.Internal.CPLProgress #}
-{#import GDAL.Internal.OSR #}
-{#import GDAL.Internal.OGRGeometry #}
-{#import GDAL.Internal.GDAL #}
-
-#include "gdalwarper.h"
 
 data GDALWarpException
   = CannotSetTransformer
@@ -103,12 +111,14 @@ setOptionDefaults
 setOptionDefaults ds moDs wo@WarpOptions{..} = do
   bands <- if null woBands
             then do
-              nBands <- datasetBandCount ds
+              nBands <- bandCount ds
               forM [1..nBands] $ \i -> do
-                srcNd <- bandNodataValue =<< getBand i ds
+                srcNd <- liftIO $
+                         bandNodataValueAsDouble =<< getBandH i (unDataset ds)
                 case moDs of
                   Just oDs -> do
-                    dstNd <- bandNodataValue =<< getBand i oDs
+                    dstNd <- liftIO $
+                             bandNodataValueAsDouble =<< getBandH i (unDataset oDs)
                     return (BandOptions i i srcNd dstNd)
                   Nothing  -> return (BandOptions i i srcNd srcNd)
             else return woBands
@@ -230,9 +240,9 @@ setWarpedVRTDefaultTransformer wo = wo
 setDstNodata :: RWDataset s -> WarpOptions s -> GDAL s ()
 setDstNodata oDs options
   = when (anyBandHasDstNoData options) $
-      forM_ (woBands options) $ \BandOptions{..} ->
+      liftIO $ forM_ (woBands options) $ \BandOptions{..} ->
         case biDstNoData of
           Just nd -> do
-            b <- getBand biDst oDs
-            setBandNodataValue b nd
+            b <- getBandH biDst (unDataset oDs)
+            setBandNodataValueAsDouble b nd
           Nothing -> return ()

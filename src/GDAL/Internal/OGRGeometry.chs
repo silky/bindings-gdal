@@ -122,25 +122,13 @@ import GDAL.Internal.CPLError (
   , withQuietErrorHandler
   , throwBindingException
   )
+import GDAL.Internal.Types
 import GDAL.Internal.Util
 
 
 type EnvelopeReal = Envelope Double
 
 {#pointer *OGREnvelope->EnvelopeReal #}
-
-data Envelope a =
-  Envelope {
-    envelopeMin :: !(XY a)
-  , envelopeMax :: !(XY a)
-  } deriving (Eq, Show, Read, Functor, Typeable)
-
-instance NFData a => NFData (Envelope a) where
-  rnf (Envelope a b) = rnf a `seq` rnf b `seq` ()
-
-envelopeSize :: Num a => Envelope a -> XY a
-envelopeSize w = liftA2 (-) (envelopeMax w) (envelopeMin w)
-{-# INLINE envelopeSize #-}
 
 instance Storable EnvelopeReal where
   sizeOf _    = {#sizeof OGREnvelope#}

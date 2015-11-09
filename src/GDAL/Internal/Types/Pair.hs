@@ -3,13 +3,27 @@
 module GDAL.Internal.Types.Pair (Pair(..)) where
 
 import Data.Primitive.Types
+import Foreign.Storable (Storable(..))
+import Foreign.Ptr (castPtr)
 import GHC.Base
 
-newtype Pair a = Pair { unPair :: (a, a) }
+newtype Pair a = Pair { unPair :: (a, a) } deriving (Eq, Show)
 
 instance Functor Pair where
   fmap f (Pair (a, b)) = Pair (f a, f b)
   {-# INLINE fmap #-}
+
+instance Storable a => Storable (Pair a) where
+  sizeOf _ = 2 * sizeOf (undefined::a)
+  {-# INLINE sizeOf #-}
+  alignment _ = alignment (undefined::a)
+  {-# INLINE alignment #-}
+  poke ptr (Pair (x,y)) = poke ptr' x >> pokeElemOff ptr' 1 y
+    where ptr' = castPtr ptr
+  {-# INLINE poke #-}
+  peek ptr = Pair <$> ((,) <$> peek ptr' <*> peekElemOff ptr' 1)
+    where ptr' = castPtr ptr
+  {-# INLINE peek #-}
 
 instance Prim a => Prim (Pair a) where
 

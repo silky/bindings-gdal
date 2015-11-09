@@ -39,9 +39,6 @@ module GDAL (
   , ReadOnly
   , RWDataset
   , RODataset
-  , RWBand
-  , ROBand
-  , Band
   , MaskType (MaskPerBand, MaskPerDataset)
   , Value (..)
   , ProgressFun
@@ -66,9 +63,6 @@ module GDAL (
   , createCopy
   , buildOverviews
 
-  , bandTypedAs
-  , bandCoercedTo
-
   , datasetDriver
   , datasetSize
   , datasetFileList
@@ -78,28 +72,9 @@ module GDAL (
   , setDatasetGeotransform
   , datasetGCPs
   , setDatasetGCPs
-  , datasetBandCount
 
-  , bandDataType
-  , bandBlockSize
-  , bandBlockCount
-  , bandBlockLen
-  , bandSize
-  , bandHasOverviews
-  , allBand
   , sizeLen
-  , bandNodataValue
-  , setBandNodataValue
-  , addBand
-  , getBand
-  , isNativeBand
-  , readBand
-  , createBandMask
-  , readBandBlock
-  , writeBand
-  , writeBandBlock
-  , copyBand
-  , fillBand
+
   , metadataDomains
   , metadata
   , metadataItem
@@ -109,10 +84,6 @@ module GDAL (
 
   , gcp
 
-  , foldl'
-  , foldlM'
-  , ifoldl'
-  , ifoldlM'
   , version
 
   , gcpGeotransform
@@ -130,7 +101,11 @@ module GDAL (
 import Control.Exception (finally)
 import Control.Monad.IO.Class (liftIO)
 
+import GDAL.Band.Generic
+
 import GDAL.Internal.CPLError
+import GDAL.Internal.DataType
+import GDAL.Internal.GDAL.Types
 import GDAL.Internal.CPLString
 import GDAL.Internal.CPLProgress
 import GDAL.Internal.GCP
