@@ -21,6 +21,7 @@ import Data.Word
 import Data.Complex (Complex((:+)), realPart, imagPart)
 #else
 import Data.Complex (Complex((:+)))
+realPart, imagPart :: Complex t -> t
 realPart (a :+ _) = a
 imagPart (_ :+ a) = a
 #endif

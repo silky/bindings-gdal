@@ -61,7 +61,7 @@ import GDAL.Internal.Util
 {#import GDAL.Internal.CPLProgress#}
 
 
-import Control.Applicative (liftA2)
+import Control.Applicative (liftA2, pure)
 import Control.Monad (liftM, liftM2)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.Primitive (RealWorld)
