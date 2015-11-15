@@ -9,8 +9,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
 module GDAL.Internal.Vector.Translated (
-    MVector (..)
-  , Vector  (..)
+    MVector
+  , Vector
   , IOVector
   , STVector
 
@@ -42,7 +42,7 @@ import Data.Typeable (Typeable)
 import Foreign.Ptr (Ptr)
 
 
-import GHC.Word (Word8, Word16, Word32, Word64)
+import GHC.Word (Word8, Word16, Word32)
 import GHC.Int (Int16, Int32)
 import GHC.Base
 import GHC.Ptr (Ptr(..))
@@ -57,6 +57,9 @@ data MVector s a =
           , mvData     :: {-# UNPACK #-} !(MutableByteArray s)
           }
   deriving ( Typeable )
+
+instance NFData (MVector s a) where
+  rnf (MVector _ _ _ _) = ()
 
 newTMVector
   :: PrimMonad m
@@ -167,11 +170,38 @@ instance GDALType a => M.MVector MVector a where
     | otherwise = error "GDAL.Internal.Vector.Translated.basicUnsafeWrite"
 
   {-# INLINE basicSet #-}
-  basicSet = tVectorSet
+  basicSet MVector{mvOff=i, mvLen=n, mvData=arr, mvDataType} x
+    | mvDataType == fromEnum GDT_Byte
+    = setByteArray arr i n (gToIntegral x :: Word8)
+    | mvDataType == fromEnum GDT_UInt16
+    = setByteArray arr i n (gToIntegral x :: Word16)
+    | mvDataType == fromEnum GDT_UInt32
+    = setByteArray arr i n (gToIntegral x :: Word32)
+    | mvDataType == fromEnum GDT_Int16
+    = setByteArray arr i n (gToIntegral x :: Int16)
+    | mvDataType == fromEnum GDT_Int32
+    = setByteArray arr i n (gToIntegral x :: Int32)
+    | mvDataType == fromEnum GDT_Float32
+    = setByteArray arr i n  (gToReal x :: Float)
+    | mvDataType == fromEnum GDT_Float64
+    = setByteArray arr i n (gToReal x :: Double)
+    | mvDataType == fromEnum GDT_CInt16
+    = setByteArray arr i n (gToIntegralPair x :: Pair Int16)
+    | mvDataType == fromEnum GDT_CInt32
+    = setByteArray arr i n (gToIntegralPair x :: Pair Int32)
+    | mvDataType == fromEnum GDT_CFloat32
+    = setByteArray arr i n (gToRealPair x :: Pair Float)
+    | mvDataType == fromEnum GDT_CFloat64
+    = setByteArray arr i n (gToRealPair x :: Pair Double)
+    | otherwise = error "GDAL.Internal.Vector.Translated.basicSet"
 
   {-# INLINE basicUnsafeCopy #-}
-  basicUnsafeCopy dVec sVec = loop 0
+  basicUnsafeCopy dVec@MVector{mvDataType=dDt, mvOff=i, mvLen=n, mvData=dst}
+                  sVec@MVector{mvDataType=sDt, mvOff=j, mvData=src}
+    | sDt == dDt = copyMutableByteArray dst (i*sz) src (j*sz) (n*sz)
+    | otherwise  = loop 0
     where
+      sz = sizeOfDataType (toEnum dDt)
       loop !ix
         | ix < mvLen dVec = do
             M.basicUnsafeRead sVec ix >>= M.basicUnsafeWrite dVec ix
@@ -179,32 +209,12 @@ instance GDALType a => M.MVector MVector a where
         | otherwise      = return ()
 
   {-# INLINE basicUnsafeMove #-}
-  basicUnsafeMove = M.basicUnsafeCopy
-
-
-tVectorSet
-  :: forall m a. (GDALType a, PrimMonad m)
-  => MVector (PrimState m) a -> a -> m ()
-tVectorSet v@MVector{mvLen=n, mvData, mvDataType} x
-  | n == 0 = return ()
-  | otherwise = case sizeOfDataType (toEnum mvDataType) of
-                  1 -> setAsPrim (undefined :: Word8)
-                  2 -> setAsPrim (undefined :: Word16)
-                  4 -> setAsPrim (undefined :: Word32)
-                  8 -> setAsPrim (undefined :: Word64)
-                  _ -> let do_set !i
-                             | i<n = M.basicUnsafeWrite v i x  >> do_set (i+1)
-                             | otherwise = return ()
-                       in do_set 0
-
-  where
-    {-# INLINE[0] setAsPrim #-}
-    setAsPrim :: Prim b => b -> m ()
-    setAsPrim y = do
-      M.basicUnsafeWrite v 0 x
-      w <- readByteArray mvData 0
-      setByteArray mvData 1 (n-1) (w `asTypeOf` y)
-{-# INLINE tVectorSet #-}
+  basicUnsafeMove dVec@MVector{mvDataType=dDt, mvOff=i, mvLen=n, mvData=dst}
+                  sVec@MVector{mvDataType=sDt, mvOff=j, mvData=src}
+    | sDt == dDt = moveByteArray dst (i*sz) src (j*sz) (n*sz)
+    | otherwise  = M.basicUnsafeCopy dVec sVec
+    where
+      sz = sizeOfDataType (toEnum dDt)
 
 
 unsafeWithM
@@ -282,10 +292,24 @@ instance GDALType a => G.Vector Vector a where
     | otherwise = error "GDAL.Internal.Vector.Translated.basicUnsafeIndex"
 
   {-# INLINE basicUnsafeCopy #-}
-  basicUnsafeCopy dst src = G.unsafeThaw src >>= M.unsafeCopy dst
+  basicUnsafeCopy dVec@MVector{mvDataType=dDt, mvOff=i, mvLen=n, mvData=dst}
+                  sVec@Vector{vDataType=sDt, vOff=j, vData=src}
+    | sDt == dDt = copyByteArray dst (i*sz) src (j*sz) (n*sz)
+    | otherwise  = loop 0
+    where
+      sz = sizeOfDataType (toEnum dDt)
+      loop !ix
+        | ix < mvLen dVec = do
+            G.basicUnsafeIndexM sVec ix >>= M.basicUnsafeWrite dVec ix
+            loop (ix+1)
+        | otherwise      = return ()
 
   {-# INLINE elemseq #-}
   elemseq _ = seq
+
+instance NFData (Vector a) where
+  rnf (Vector _ _ _ _) = ()
+
 
 
 unsafeWith :: Vector a -> (DataType -> Ptr () -> IO b) -> IO b

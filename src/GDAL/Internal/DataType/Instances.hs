@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -13,10 +14,16 @@ import GDAL.Internal.Types.Pair
 
 import Control.Arrow
 
-import Data.Complex
 import Data.Int
 import Data.Word
 
+#if MIN_VERSION_base(4,8,0)
+import Data.Complex (Complex((:+)), realPart, imagPart)
+#else
+import Data.Complex (Complex((:+)))
+realPart (a :+ _) = a
+imagPart (_ :+ a) = a
+#endif
 
 deriveGDALType "Word8"
   [t|Word8|]
