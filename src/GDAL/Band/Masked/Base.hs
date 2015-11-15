@@ -38,6 +38,7 @@ import Control.Monad (liftM)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 
 import Data.Maybe (fromMaybe)
+import Data.Monoid (Monoid(..))
 import qualified Data.Vector.Generic           as G
 import qualified Data.Vector.Generic.Mutable   as M
 import qualified Data.Vector.Storable          as St
