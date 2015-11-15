@@ -2,6 +2,7 @@
 
 module GDAL.Internal.Types.Pair (Pair(..)) where
 
+import Control.Applicative ((<$>), (<*>))
 import Data.Primitive.Types
 import Foreign.Storable (Storable(..))
 import Foreign.Ptr (castPtr)
