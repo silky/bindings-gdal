@@ -28,6 +28,7 @@ import GDAL.Internal.DataType (
   )
 
 import Control.DeepSeq ( NFData(rnf) )
+import Control.Monad (liftM)
 import Control.Monad.Primitive
 
 import qualified Data.Vector.Generic.Mutable  as M
