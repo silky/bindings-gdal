@@ -5,6 +5,8 @@ module GDAL.Band.Masked.Translated (
     Band
   , Vector
   , MVector
+  , IOVector
+  , STVector
   , bandCount
   , bandDataType
   , bandBlockSize
@@ -49,9 +51,11 @@ import GDAL.Internal.GDAL.Types (
   )
 
 
-type Band = M.Band T.Band
-type Vector  = BG.Vector  Band
+type Band     = M.Band      T.Band
+type Vector   = BG.Vector   Band
 type MVector  = BG.MVector  Band
+type IOVector = BG.IOVector Band
+type STVector = BG.STVector Band
 
 
 ------------------------------------------------------------------------------

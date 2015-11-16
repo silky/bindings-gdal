@@ -40,8 +40,8 @@ import Data.Typeable (Typeable)
 import Data.Word
 
 import qualified Data.Vector.Generic.Mutable as M
-import qualified Data.Vector.Storable         as St
 import qualified Data.Vector.Generic as G
+import qualified Data.Vector.Storable         as St
 import qualified Data.Vector.Fusion.Bundle as Bundle
 
 import GHC.Exts (IsList(..), inline)
