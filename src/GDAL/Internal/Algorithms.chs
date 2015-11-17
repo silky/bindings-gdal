@@ -347,7 +347,7 @@ createGridIO options noDataVal progressFun points envelope size =
     let xs = St.unsafeCast (St.map (px . gpXY) points)
         ys = St.unsafeCast (St.map (py . gpXY) points)
         zs = St.unsafeCast (St.map gpZ         points)
-    out <- newMVector GDT_Float64 (sizeLen size)
+    out <- newMVector DT.GDT_Float64 (sizeLen size)
     checkCPLError "GDALGridCreate" $
       St.unsafeWith xs $ \pXs ->
       St.unsafeWith ys $ \pYs ->

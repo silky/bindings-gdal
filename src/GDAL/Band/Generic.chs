@@ -47,7 +47,7 @@ module GDAL.Band.Generic (
 
 {#import GDAL.Internal.GDAL.Types#}
 
-import GDAL.Internal.DataType (GDALType(gToReal, gFromReal))
+import GDAL.Internal.DataType (GDALType(gToReal, gFromReal), DataType)
 import GDAL.Internal.DataType.Instances()
 import GDAL.Band.Generic.Internal (
     setBandNodataValueAsDouble

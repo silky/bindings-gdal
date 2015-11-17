@@ -41,11 +41,10 @@ import GDAL.Band.Masked.Base (Nullable, Elem)
 import qualified GDAL.Band.Native as N
 import qualified GDAL.Band.Generic as BG
 
-import GDAL.Internal.DataType (GDALType)
+import GDAL.Internal.DataType (GDALType, DataType)
 import GDAL.Internal.Types
 import GDAL.Internal.GDAL.Types (
-    DataType
-  , Dataset
+    Dataset
   , RWDataset
   , OptionList
   , ProgressFun

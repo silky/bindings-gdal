@@ -21,11 +21,10 @@ module GDAL.Band.Masked.Base (
 ) where
 
 import GDAL.Internal.Types
-import GDAL.Internal.DataType (GDALType)
+import GDAL.Internal.DataType (GDALType, DataType(GDT_Byte))
 import GDAL.Internal.GDAL.Types (
     GDALRasterException(BandDoesNotAllowNoData, InvalidBlockSize)
   , MaskType(..)
-  , gdtByte
   )
 import GDAL.Internal.CPLError (throwBindingException)
 import qualified GDAL.Band.Generic as BG
@@ -217,8 +216,8 @@ instance ( VM.Nullable a
         liftIO $ do
           maskBand <- bandMaskH (BG.bandH b)
           mv <- M.new (sizeLen sz)
-          adviseRead [] gdtByte maskBand win sz
-          Stm.unsafeWith mv $ rasterIO gdtByte GF_Read maskBand win sz 0
+          adviseRead [] GDT_Byte maskBand win sz
+          Stm.unsafeWith mv $ rasterIO GDT_Byte GF_Read maskBand win sz 0
           v <- G.unsafeFreeze mv
           return (V_Band (VM.newWithMask v vec))
   {-# INLINE readWindow #-}
@@ -236,7 +235,7 @@ instance ( VM.Nullable a
               BG.writeWindow (baseBand b) win sz v'
               liftIO $ do
                 mb <- bandMaskH (BG.bandH b)
-                St.unsafeWith m $ rasterIO gdtByte GF_Write mb win sz 0
+                St.unsafeWith m $ rasterIO GDT_Byte GF_Write mb win sz 0
   {-# INLINE writeWindow #-}
 
   writeBlock b ix (V_Band v)
@@ -277,7 +276,7 @@ instance ( VM.Nullable a
 
 maskIO
   :: BG.Band b s a t => RWFlag -> BandH -> b s a t -> BlockIx -> Ptr c -> IO ()
-maskIO mode mbh b ix ptr = rasterIO gdtByte mode mbh win sz spacing ptr
+maskIO mode mbh b ix ptr = rasterIO GDT_Byte mode mbh win sz spacing ptr
   where
     bi  = fmap fromIntegral ix
     bs  = fmap fromIntegral (BG.bandBlockSize b)

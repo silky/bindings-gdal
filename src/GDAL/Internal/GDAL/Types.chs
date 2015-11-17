@@ -9,7 +9,6 @@
 
 module GDAL.Internal.GDAL.Types (
     BandH (..)
-  , DataType (..)
   , Dataset (..)
   , DatasetH (..)
   , Driver (..)
@@ -27,19 +26,6 @@ module GDAL.Internal.GDAL.Types (
   , RWDataset
 
   , RWFlag (..)
-
-  , gdtByte
-  , gdtUInt16
-  , gdtUInt32
-  , gdtInt16
-  , gdtInt32
-  , gdtFloat32
-  , gdtFloat64
-  , gdtCInt16
-  , gdtCInt32
-  , gdtCFloat32
-  , gdtCFloat64
-  , gdtUnknown
 
   , maskFlagsForType
 
@@ -167,45 +153,6 @@ instance Show Driver where
   show (Driver s) = show s
 
 
-------------------------------------------------------------------------------
--- DataType
-------------------------------------------------------------------------------
-
-gdtByte :: DataType
-gdtByte = GDT_Byte
-
-gdtUInt16 :: DataType
-gdtUInt16 = GDT_UInt16
-
-gdtUInt32 :: DataType
-gdtUInt32 = GDT_UInt32
-
-gdtInt16 :: DataType
-gdtInt16 = GDT_Int16
-
-gdtInt32 :: DataType
-gdtInt32 = GDT_Int32
-
-gdtFloat32 :: DataType
-gdtFloat32 = GDT_Float32
-
-gdtFloat64 :: DataType
-gdtFloat64 = GDT_Float64
-
-gdtCInt16 :: DataType
-gdtCInt16 = GDT_CInt16
-
-gdtCInt32 :: DataType
-gdtCInt32 = GDT_CInt32
-
-gdtCFloat32 :: DataType
-gdtCFloat32 = GDT_CFloat32
-
-gdtCFloat64 :: DataType
-gdtCFloat64 = GDT_CFloat64
-
-gdtUnknown :: DataType
-gdtUnknown = GDT_Unknown
 
 
 data MaskType

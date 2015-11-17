@@ -42,10 +42,9 @@ module GDAL.Band.Native (
   , ifoldlM'
 ) where
 
-import GDAL.Internal.DataType (GDALType(dataType))
+import GDAL.Internal.DataType (GDALType(dataType), DataType)
 import GDAL.Internal.GDAL.Types (
     GDALRasterException(..)
-  , DataType
   , Dataset
   , RWDataset
   , OptionList

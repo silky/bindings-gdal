@@ -21,6 +21,7 @@ module GDAL.Band.Generic.Internal (
 ) where
 
 import GDAL.Internal.Types
+import GDAL.Internal.DataType (DataType)
 import GDAL.Internal.Util (fromEnumC)
 {#import GDAL.Internal.GDAL.Types#}
 {#import GDAL.Internal.CPLString#}
