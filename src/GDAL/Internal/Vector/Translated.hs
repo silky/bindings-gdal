@@ -7,6 +7,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE MagicHash #-}
 
 module GDAL.Internal.Vector.Translated (
     MVector
@@ -114,86 +115,19 @@ instance GDALType a => M.MVector MVector a where
 #endif
 
   {-# INLINE basicUnsafeRead #-}
-  basicUnsafeRead MVector{mvData, mvOff, mvDataType} i
-    | mvDataType == fromEnum GDT_Byte
-    = (gFromIntegral :: Word8 -> a) `liftM` readByteArray mvData (mvOff+i)
-    | mvDataType == fromEnum GDT_UInt16
-    = (gFromIntegral :: Word16 -> a) `liftM` readByteArray mvData (mvOff+i)
-    | mvDataType == fromEnum GDT_UInt32
-    = (gFromIntegral :: Word32 -> a) `liftM` readByteArray mvData (mvOff+i)
-    | mvDataType == fromEnum GDT_Int16
-    = (gFromIntegral :: Int16 -> a) `liftM` readByteArray mvData (mvOff+i)
-    | mvDataType == fromEnum GDT_Int32
-    = (gFromIntegral :: Int32 -> a) `liftM` readByteArray mvData (mvOff+i)
-    | mvDataType == fromEnum GDT_Float32
-    = (gFromReal :: Float -> a) `liftM` readByteArray mvData (mvOff+i)
-    | mvDataType == fromEnum GDT_Float64
-    = (gFromReal :: Double -> a) `liftM` readByteArray mvData (mvOff+i)
-    | mvDataType == fromEnum GDT_CInt16
-    = (gFromIntegralPair :: Pair Int16 -> a)
-        `liftM` readByteArray mvData (mvOff+i)
-    | mvDataType == fromEnum GDT_CInt32
-    = (gFromIntegralPair :: Pair Int32 -> a)
-        `liftM` readByteArray mvData (mvOff+i)
-    | mvDataType == fromEnum GDT_CFloat32
-    = (gFromRealPair :: Pair Float -> a)
-        `liftM` readByteArray mvData (mvOff+i)
-    | mvDataType == fromEnum GDT_CFloat64
-    = (gFromRealPair :: Pair Double -> a)
-        `liftM` readByteArray mvData (mvOff+i)
-    | otherwise = error "GDAL.Internal.Vector.Translated.basicUnsafeRead"
+  basicUnsafeRead MVector{ mvData     = MutableByteArray arr#
+                         , mvOff      = I# o#
+                         , mvDataType = I# dt#
+                         } (I# i#) =
+    primitive (gReadByteArray# dt# arr# (o# +# i#))
+
 
   {-# INLINE basicUnsafeWrite #-}
-  basicUnsafeWrite MVector{ mvData , mvOff , mvDataType } i x
-    | mvDataType == fromEnum GDT_Byte
-    = writeByteArray mvData (mvOff+i) (gToIntegral x :: Word8)
-    | mvDataType == fromEnum GDT_UInt16
-    = writeByteArray mvData (mvOff+i) (gToIntegral x :: Word16)
-    | mvDataType == fromEnum GDT_UInt32
-    = writeByteArray mvData (mvOff+i) (gToIntegral x :: Word32)
-    | mvDataType == fromEnum GDT_Int16
-    = writeByteArray mvData (mvOff+i) (gToIntegral x :: Int16)
-    | mvDataType == fromEnum GDT_Int32
-    = writeByteArray mvData (mvOff+i) (gToIntegral x :: Int32)
-    | mvDataType == fromEnum GDT_Float32
-    = writeByteArray mvData (mvOff+i) (gToReal x :: Float)
-    | mvDataType == fromEnum GDT_Float64
-    = writeByteArray mvData (mvOff+i) (gToReal x :: Double)
-    | mvDataType == fromEnum GDT_CInt16
-    = writeByteArray mvData (mvOff+i) (gToIntegralPair x :: Pair Int16)
-    | mvDataType == fromEnum GDT_CInt32
-    = writeByteArray mvData (mvOff+i) (gToIntegralPair x :: Pair Int32)
-    | mvDataType == fromEnum GDT_CFloat32
-    = writeByteArray mvData (mvOff+i) (gToRealPair x :: Pair Float)
-    | mvDataType == fromEnum GDT_CFloat64
-    = writeByteArray mvData (mvOff+i) (gToRealPair x :: Pair Double)
-    | otherwise = error "GDAL.Internal.Vector.Translated.basicUnsafeWrite"
-
-  {-# INLINE basicSet #-}
-  basicSet MVector{mvOff=i, mvLen=n, mvData=arr, mvDataType} x
-    | mvDataType == fromEnum GDT_Byte
-    = setByteArray arr i n (gToIntegral x :: Word8)
-    | mvDataType == fromEnum GDT_UInt16
-    = setByteArray arr i n (gToIntegral x :: Word16)
-    | mvDataType == fromEnum GDT_UInt32
-    = setByteArray arr i n (gToIntegral x :: Word32)
-    | mvDataType == fromEnum GDT_Int16
-    = setByteArray arr i n (gToIntegral x :: Int16)
-    | mvDataType == fromEnum GDT_Int32
-    = setByteArray arr i n (gToIntegral x :: Int32)
-    | mvDataType == fromEnum GDT_Float32
-    = setByteArray arr i n  (gToReal x :: Float)
-    | mvDataType == fromEnum GDT_Float64
-    = setByteArray arr i n (gToReal x :: Double)
-    | mvDataType == fromEnum GDT_CInt16
-    = setByteArray arr i n (gToIntegralPair x :: Pair Int16)
-    | mvDataType == fromEnum GDT_CInt32
-    = setByteArray arr i n (gToIntegralPair x :: Pair Int32)
-    | mvDataType == fromEnum GDT_CFloat32
-    = setByteArray arr i n (gToRealPair x :: Pair Float)
-    | mvDataType == fromEnum GDT_CFloat64
-    = setByteArray arr i n (gToRealPair x :: Pair Double)
-    | otherwise = error "GDAL.Internal.Vector.Translated.basicSet"
+  basicUnsafeWrite MVector{ mvData     = MutableByteArray arr#
+                          , mvOff      = I# o#
+                          , mvDataType = I# dt#
+                          } (I# i#) v =
+    primitive_ (gWriteByteArray# dt# arr# (o# +# i#) v)
 
   {-# INLINE basicUnsafeCopy #-}
   basicUnsafeCopy dVec@MVector{mvDataType=dDt, mvOff=i, mvLen=n, mvData=dst}
@@ -266,30 +200,11 @@ instance GDALType a => G.Vector Vector a where
                              }
 
   {-# INLINE basicUnsafeIndexM #-}
-  basicUnsafeIndexM Vector{vOff,vData,vDataType} i
-    | vDataType == fromEnum GDT_Byte
-    = return $! gFromIntegral (indexByteArray vData (vOff+i) :: Word8)
-    | vDataType == fromEnum GDT_UInt16
-    = return $! gFromIntegral (indexByteArray vData (vOff+i) :: Word16)
-    | vDataType == fromEnum GDT_UInt32
-    = return $! gFromIntegral (indexByteArray vData (vOff+i) :: Word32)
-    | vDataType == fromEnum GDT_Int16
-    = return $! gFromIntegral (indexByteArray vData (vOff+i) :: Int16)
-    | vDataType == fromEnum GDT_Int32
-    = return $! gFromIntegral (indexByteArray vData (vOff+i) :: Int32)
-    | vDataType == fromEnum GDT_Float32
-    = return $! gFromReal (indexByteArray vData (vOff+i) :: Float)
-    | vDataType == fromEnum GDT_Float64
-    = return $! gFromReal (indexByteArray vData (vOff+i) :: Double)
-    | vDataType == fromEnum GDT_CInt16
-    = return $! gFromIntegralPair (indexByteArray vData (vOff+i) :: Pair Int16)
-    | vDataType == fromEnum GDT_CInt32
-    = return $! gFromIntegralPair (indexByteArray vData (vOff+i) :: Pair Int32)
-    | vDataType == fromEnum GDT_CFloat32
-    = return $! gFromRealPair (indexByteArray vData (vOff+i) :: Pair Float)
-    | vDataType == fromEnum GDT_CFloat64
-    = return $! gFromRealPair (indexByteArray vData (vOff+i) :: Pair Double)
-    | otherwise = error "GDAL.Internal.Vector.Translated.basicUnsafeIndex"
+  basicUnsafeIndexM Vector{ vData     = ByteArray arr#
+                          , vOff      = I# o#
+                          , vDataType = I# dt#
+                          } (I# i#) =
+    return $! gIndexByteArray# dt# arr# (o# +# i#)
 
   {-# INLINE basicUnsafeCopy #-}
   basicUnsafeCopy dVec@MVector{mvDataType=dDt, mvOff=i, mvLen=n, mvData=dst}

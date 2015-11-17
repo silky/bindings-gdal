@@ -47,7 +47,7 @@ module GDAL.Band.Generic (
 
 {#import GDAL.Internal.GDAL.Types#}
 
-import GDAL.Internal.DataType (GDALType(gToReal, gFromReal), DataType)
+import GDAL.Internal.DataType (GDALType, convertGType, DataType)
 import GDAL.Internal.DataType.Instances()
 import GDAL.Band.Generic.Internal (
     setBandNodataValueAsDouble
@@ -200,12 +200,12 @@ bandHasOverviews =
 bandNodataValue
   :: (GDALType a , Band b s a t) => b s a t -> GDAL s (Maybe a)
 bandNodataValue =
-  liftM (fmap gFromReal) . liftIO . bandNodataValueAsDouble . bandH
+  liftM (fmap convertGType) . liftIO . bandNodataValueAsDouble . bandH
 
 
 setBandNodataValue
   :: (GDALType a, RWBand b s a) => b s a ReadWrite -> a -> GDAL s ()
-setBandNodataValue b = liftIO . setBandNodataValueAsDouble (bandH b) . gToReal
+setBandNodataValue b = liftIO . setBandNodataValueAsDouble (bandH b) . convertGType
 
 createMaskBand :: RWBand b s a => b s a ReadWrite -> MaskType -> GDAL s ()
 createMaskBand band maskType = liftIO $

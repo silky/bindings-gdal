@@ -32,6 +32,11 @@ import qualified Data.Vector.Generic.Mutable   as M
 import Data.Int (Int8, Int16, Int32)
 import Data.Primitive.Types
 import Data.Word (Word8, Word16, Word32)
+
+import GHC.Prim
+import GHC.Base
+import GHC.Word
+import GHC.Int
 ------------------------------------------------------------------------------
 -- instance deriver
 ------------------------------------------------------------------------------
@@ -112,26 +117,75 @@ deriveGDALType name typeQ gtypeQ toInt fromInt toReal fromReal toInt2 fromInt2
           [(NotStrict, ConT ''T.Vector `AppT` type_)]) []
 
 
-  nClauses <- forM [
-      ('gFromIntegral, fromInt)
-    , ('gToIntegral, toInt)
-    , ('gFromReal, fromReal)
-    , ('gToReal, toReal)
-    , ('gFromIntegralPair, fromInt2)
-    , ('gToIntegralPair, toInt2)
-    , ('gFromRealPair, fromReal2)
-    , ('gToRealPair, toReal2)
-    ] $ \(fname,fQ) -> do
-      f <- fQ
-      val <- newName "v"
-      return (fname, Clause [VarP val] (NormalB (f `AppE` VarE val)) [])
+  let pTypes = [ (False, False, ''Word8  , 'W8#  , GDT_Byte    )
+               , (False, False, ''Word16 , 'W16# , GDT_UInt16  )
+               , (False, False, ''Word32 , 'W32# , GDT_UInt32  )
+               , (False, False, ''Int16  , 'I16# , GDT_Int16   )
+               , (False, False, ''Int32  , 'I32# , GDT_Int32   )
+               , (False, True , ''Float  , 'F#   , GDT_Float32 )
+               , (False, True , ''Double , 'D#   , GDT_Float64 )
+               , (True , False, ''Int16  , 'I16# , GDT_CInt16  )
+               , (True , False, ''Int32  , 'I32# , GDT_CInt32  )
+               , (True , True , ''Float  , 'F#   , GDT_CFloat32)
+               , (True , True , ''Double , 'D#   , GDT_CFloat64)
+               ]
+
+  arrayClauses <- forM pTypes $ \(isPair, isReal, primName, pConName, dt) -> do
+    let (toRepQ, fromRepQ) =
+          case (isPair, isReal) of
+               (False , False ) -> (toInt, fromInt)
+               (False , True  ) -> (toReal, fromReal)
+               (True  , False ) -> (toInt2, fromInt2)
+               (True  , True  ) -> (toReal2, fromReal2)
+        nStr = nameBase primName ++ "Array#"
+        readF = return (VarE (mkName ("GHC.Prim.read" ++ nStr)))
+        writeF = return (VarE (mkName ("GHC.Prim.write" ++ nStr)))
+        indexF = return (VarE (mkName ("GHC.Prim.index" ++ nStr)))
+        pConE = return (ConE pConName)
+        pat   = LitP (IntPrimL (fromIntegral (fromEnum dt)))
+        funs i r w = [
+            ('gIndexByteArray#, (Clause [pat] (NormalB i) []))
+          , ('gReadByteArray#, (Clause [pat] (NormalB r) []))
+          , ('gWriteByteArray#, (Clause [pat] (NormalB w) []))
+          ]
+
+    if isPair
+      then do
+        read# <- [|\a# i# s# ->
+                    case $(readF) a# (i# *# 2#) s# of {(# s1#, v1# #) ->
+                    case $(readF) a# (i# *# 2# +# 1#) s1# of {(# s2#, v2# #) ->
+                      (# s2#, $(fromRepQ) (Pair ($pConE v1#, $pConE v2#)) #)
+                  }}|]
+        index# <- [|\a# i# -> $fromRepQ (
+                      Pair ( $pConE ($indexF a# (i# *# 2#))
+                           , $pConE ($indexF a# (i# *# 2# +# 1#)))) |]
+        (pQ1, vQ1) <- newPatConExpQ pConName "v1"
+        (pQ2, vQ2) <- newPatConExpQ pConName "v2"
+        write# <- [|\a# i# v s# ->
+                    case $toRepQ v of {Pair ($pQ1, $pQ2) ->
+                    case $writeF a# (i# *# 2#) $vQ1 s# of { s1# ->
+                    $writeF a# (i# *# 2# +# 1#) $vQ2 s1#}}|]
+
+        return (funs index# read# write#)
+      else do
+        read# <- [|\a# i# s# ->
+                    case $(readF) a# i# s# of
+                      (# s1#, v# #) -> (# s1#, $(fromRepQ) ($(pConE) v#) #) |]
+        index# <- [|\a# i# ->
+                    case $(indexF) a# i# of
+                      v# -> $(fromRepQ) ($(pConE) v#) |]
+        (pQ, vQ) <- newPatConExpQ pConName "v"
+        write# <- [|\a# i# v s# ->
+                     case $toRepQ v of
+                       $pQ -> $(writeF) a# i# $vQ s# |]
+        return (funs index# read# write#)
+
 
   tv <- newName "tv"
   j <- newName "j"
   dt <- newName "dt"
 
-
-  let gInstClauses = nClauses ++ [
+  let gInstClauses = concat arrayClauses ++ [
           ('dataType, Clause  [WildP] (NormalB (gtype)) [])
         , ('unsafeAsNative,
             Clause
@@ -169,6 +223,9 @@ deriveGDALType name typeQ gtypeQ toInt fromInt toReal fromReal toInt2 fromInt2
 newPatExp :: String -> Q (Pat, Exp)
 newPatExp = fmap (VarP &&& VarE) . newName
 
+newPatConExpQ :: Name -> String -> Q (Q Pat, Q Exp)
+newPatConExpQ cName =
+  fmap ((return . (\v -> ConP cName [VarP v])) &&& (return . VarE)) . newName
 
 liftE :: Exp -> Exp -> Exp
 liftE e = InfixE (Just e) (VarE 'liftM) . Just

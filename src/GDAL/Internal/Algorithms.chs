@@ -314,7 +314,7 @@ rasterizeLayersBuf getLayers mTransformer nodataValue
         tArg bValue opts pFun nullPtr
     liftM (MV.newWithNoData nodataValue) (G.unsafeFreeze vec)
   where
-    bValue    = gToReal burnValue
+    bValue    = realToFrac (DT.convertGType burnValue :: Double)
     XY nx ny  = fmap fromIntegral size
 
 
@@ -343,7 +343,7 @@ createGridIO options noDataVal progressFun points envelope size =
   withProgressFun "createGridIO" progressFun $ \pFun ->
   withErrorHandler $
   with options $ \opts -> do
-    setNodata opts (gToReal noDataVal)
+    setNodata opts cNoData
     let xs = St.unsafeCast (St.map (px . gpXY) points)
         ys = St.unsafeCast (St.map (py . gpXY) points)
         zs = St.unsafeCast (St.map gpZ         points)
@@ -372,6 +372,7 @@ createGridIO options noDataVal progressFun points envelope size =
         nullPtr
     liftM (MV.newWithNoData noDataVal) (G.unsafeFreeze out)
   where
+    cNoData = realToFrac (DT.convertGType noDataVal :: Double)
     XY nx ny                       = fmap fromIntegral size
     Envelope (XY x0 y0) (XY x1 y1) = fmap realToFrac envelope
 {-# INLINE createGridIO #-}

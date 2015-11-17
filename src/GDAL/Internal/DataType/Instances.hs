@@ -16,6 +16,7 @@ import Control.Arrow
 
 import Data.Int
 import Data.Word
+import GHC.Prim
 
 #if MIN_VERSION_base(4,8,0)
 import Data.Complex (Complex((:+)), realPart, imagPart)
