@@ -18,6 +18,7 @@ module GDAL.Internal.DataType (
   , DataType (..)
 
   , sizeOfDataType
+  , convertGType
 
   , gdtByte
   , gdtUInt16
@@ -59,9 +60,6 @@ type DataType# = Int#
 class GDALType a where
   dataType        :: a -> DataType
 
-  toDouble       :: a -> Double
-  fromDouble     :: Double -> a
-
   gReadByteArray# :: DataType# -> MutableByteArray# s -> Int# -> State# s
                   -> (# State# s, a #)
   gWriteByteArray# :: DataType# -> MutableByteArray# s -> Int# -> a -> State# s
@@ -77,6 +75,14 @@ class GDALType a where
 -}
 
 
+convertGType :: forall a b. (GDALType a, GDALType b) => a -> b
+convertGType a = runST $ do
+  MutableByteArray arr# <- newByteArray (sizeOfDataType dDt)
+  primitive_ (gWriteByteArray# dDt# arr# 0# a)
+  primitive (gReadByteArray# dDt# arr# 0#)
+  where !(I# dDt#) = fromEnum dDt
+        dDt        = dataType (undefined :: b)
+{-# INLINE convertGType #-}
 
 ------------------------------------------------------------------------------
 -- DataType

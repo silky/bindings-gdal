@@ -58,6 +58,11 @@ deriveGDALType name typeQ gtypeQ toInt fromInt toReal fromReal toInt2 fromInt2
   type_ <- typeQ
   gtype <- gtypeQ
 
+  let tName = case type_ of
+        (ConT _ `AppT` ConT n) -> nameBase n
+        (ConT n)               -> nameBase n
+        _                      -> name
+
 {-
   let mvName = mkName ("MV_" ++ name)
       vName = mkName ("V_" ++ name)
@@ -119,18 +124,21 @@ deriveGDALType name typeQ gtypeQ toInt fromInt toReal fromReal toInt2 fromInt2
 
 -}
 
-  let pTypes = [ (False, False, ''Word8  , 'W8#  , GDT_Byte    )
-               , (False, False, ''Word16 , 'W16# , GDT_UInt16  )
-               , (False, False, ''Word32 , 'W32# , GDT_UInt32  )
-               , (False, False, ''Int16  , 'I16# , GDT_Int16   )
-               , (False, False, ''Int32  , 'I32# , GDT_Int32   )
-               , (False, True , ''Float  , 'F#   , GDT_Float32 )
-               , (False, True , ''Double , 'D#   , GDT_Float64 )
-               , (True , False, ''Int16  , 'I16# , GDT_CInt16  )
-               , (True , False, ''Int32  , 'I32# , GDT_CInt32  )
-               , (True , True , ''Float  , 'F#   , GDT_CFloat32)
-               , (True , True , ''Double , 'D#   , GDT_CFloat64)
-               ]
+  let pTypes' = [ (False, False, ''Word8  , 'W8#  , GDT_Byte    )
+                , (False, False, ''Word16 , 'W16# , GDT_UInt16  )
+                , (False, False, ''Word32 , 'W32# , GDT_UInt32  )
+                , (False, False, ''Int16  , 'I16# , GDT_Int16   )
+                , (False, False, ''Int32  , 'I32# , GDT_Int32   )
+                , (False, True , ''Float  , 'F#   , GDT_Float32 )
+                , (False, True , ''Double , 'D#   , GDT_Float64 )
+                , (True , False, ''Int16  , 'I16# , GDT_CInt16  )
+                , (True , False, ''Int32  , 'I32# , GDT_CInt32  )
+                , (True , True , ''Float  , 'F#   , GDT_CFloat32)
+                , (True , True , ''Double , 'D#   , GDT_CFloat64)
+                ]
+      pTypes = sortBy (\a b -> if a/=b && pTy a == tName then LT else GT)
+                      pTypes'
+      pTy (_,_,t,_,_) = nameBase t
 
   arrayClauses <- forM pTypes $ \(isPair, isReal, primName, pConName, dt) -> do
     let (toRepQ, fromRepQ) =
@@ -154,13 +162,12 @@ deriveGDALType name typeQ gtypeQ toInt fromInt toReal fromReal toInt2 fromInt2
     if isPair
       then do
         read# <- [|\a# i# s# ->
-                    case $(readF) a# (i# *# 2#) s# of {(# s1#, v1# #) ->
-                    case $(readF) a# (i# *# 2# +# 1#) s1# of {(# s2#, v2# #) ->
-                      (# s2#, $(fromRepQ) (Pair ($pConE v1#, $pConE v2#)) #)
-                  }}|]
+                   case $(readF) a# (i# *# 2#) s# of {(# s1#, v1# #) ->
+                   case $(readF) a# (i# *# 2# +# 1#) s1# of {(# s2#, v2# #) ->
+                   (# s2#, $(fromRepQ) (Pair ($pConE v1#, $pConE v2#)) #)}}|]
         index# <- [|\a# i# -> $fromRepQ (
-                      Pair ( $pConE ($indexF a# (i# *# 2#))
-                           , $pConE ($indexF a# (i# *# 2# +# 1#)))) |]
+                    Pair ( $pConE ($indexF a# (i# *# 2#))
+                         , $pConE ($indexF a# (i# *# 2# +# 1#)))) |]
         (pQ1, vQ1) <- newPatConExpQ pConName "v1"
         (pQ2, vQ2) <- newPatConExpQ pConName "v2"
         write# <- [|\a# i# v s# ->
@@ -171,15 +178,15 @@ deriveGDALType name typeQ gtypeQ toInt fromInt toReal fromReal toInt2 fromInt2
         return (funs index# read# write#)
       else do
         read# <- [|\a# i# s# ->
-                    case $(readF) a# i# s# of
-                      (# s1#, v# #) -> (# s1#, $(fromRepQ) ($(pConE) v#) #) |]
+                    case $readF a# i# s# of
+                      (# s1#, v# #) -> (# s1#, $fromRepQ ($pConE v#) #) |]
         index# <- [|\a# i# ->
-                    case $(indexF) a# i# of
-                      v# -> $(fromRepQ) ($(pConE) v#) |]
+                    case $indexF a# i# of
+                      v# -> $fromRepQ ($pConE v#) |]
         (pQ, vQ) <- newPatConExpQ pConName "v"
         write# <- [|\a# i# v s# ->
                      case $toRepQ v of
-                       $pQ -> $(writeF) a# i# $vQ s# |]
+                       $pQ -> $writeF a# i# $vQ s# |]
         return (funs index# read# write#)
 
 
@@ -187,13 +194,9 @@ deriveGDALType name typeQ gtypeQ toInt fromInt toReal fromReal toInt2 fromInt2
   j <- newName "j"
   dt <- newName "dt"
 
-  fromDouble' <- fromReal
-  toDouble' <- toReal
 
   let gInstClauses = concat arrayClauses ++ [
           ('dataType, Clause  [WildP] (NormalB (gtype)) [])
-        , ('fromDouble, Clause  [] (NormalB (fromDouble')) [])
-        , ('toDouble, Clause  [] (NormalB (toDouble')) [])
         {-
         , ('unsafeAsNative,
             Clause

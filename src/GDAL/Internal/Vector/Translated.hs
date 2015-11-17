@@ -10,8 +10,8 @@
 {-# LANGUAGE MagicHash #-}
 
 module GDAL.Internal.Vector.Translated (
-    MVector
-  , Vector
+    MVector (..)
+  , Vector  (..)
   , IOVector
   , STVector
 

@@ -204,16 +204,3 @@ deriveGDALType "ComplexDouble"
   [|uncurry (:+) . unPair . fmap fromIntegral|]
   [|fmap realToFrac . Pair . (realPart &&& imagPart)|]
   [|uncurry (:+) . unPair . fmap realToFrac|]
-{-
-deriveGDALType "CDouble"
-  [t|CDouble|]
-  [|GDT_Float64|]
-  [|truncate|]
-  [|fromIntegral|]
-  [|realToFrac|]
-  [|realToFrac|]
-  [|(\w->Pair(truncate w,0))|]
-  [|(fromIntegral.fst.unPair)|]
-  [|\w->Pair(realToFrac w,0)|]
-  [|(realToFrac.fst.unPair)|]
--}
