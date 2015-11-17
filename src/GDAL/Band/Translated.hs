@@ -41,7 +41,7 @@ module GDAL.Band.Translated (
   , ifoldlM'
 ) where
 
-import qualified GDAL.Internal.DataType as DT
+import qualified GDAL.Internal.Vector.Translated as DT
 import GDAL.Internal.DataType (GDALType(..), DataType)
 
 import GDAL.Internal.Types
@@ -145,7 +145,7 @@ instance GDALType a => BG.Band Band s a t where
   readWindow b win sz =
     liftIO $ do
       v <- M.new (sizeLen sz)
-      unsafeAsNativeM v $ \dt p -> do
+      DT.unsafeAsNativeM v $ \dt p -> do
         adviseRead [] dt (BG.bandH b) win sz
         rasterIO dt GF_Read (BG.bandH b) win sz 0 p
       liftM Vector (G.unsafeFreeze v)
@@ -153,20 +153,20 @@ instance GDALType a => BG.Band Band s a t where
 
   writeWindow b win sz (Vector v) =
     liftIO $
-    unsafeAsNative v $ \dt -> rasterIO dt GF_Write (BG.bandH b) win sz 0
+    DT.unsafeAsNative v $ \dt -> rasterIO dt GF_Write (BG.bandH b) win sz 0
   {-# INLINE writeWindow #-}
 
   writeBlock b ix (Vector v) = liftIO $ do
     when (BG.bandBlockLen b /= G.length v) $
       throwBindingException (InvalidBlockSize (G.length v))
-    unsafeAsDataType (BG.bandDataType b) v $ writeBlockH (BG.bandH b) ix
+    DT.unsafeAsDataType (BG.bandDataType b) v $ writeBlockH (BG.bandH b) ix
   {-# INLINE writeBlock #-}
 
   blockLoader b = do
     liftIO $ do
-      v <- newMVector (BG.bandDataType b) (BG.bandBlockLen b)
+      v <- DT.newMVector (BG.bandDataType b) (BG.bandBlockLen b)
       return (MVector v, load v)
-    where load v ix = liftIO $ unsafeAsNativeM v $
+    where load v ix = liftIO $ DT.unsafeAsNativeM v $
                                const (inline readBlockH bPtr ix)
           bPtr = BG.bandH b
           {-# INLINE load #-}

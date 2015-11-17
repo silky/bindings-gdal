@@ -58,6 +58,7 @@ deriveGDALType name typeQ gtypeQ toInt fromInt toReal fromReal toInt2 fromInt2
   type_ <- typeQ
   gtype <- gtypeQ
 
+{-
   let mvName = mkName ("MV_" ++ name)
       vName = mkName ("V_" ++ name)
       mvCon = ConE mvName
@@ -116,6 +117,7 @@ deriveGDALType name typeQ gtypeQ toInt fromInt toReal fromReal toInt2 fromInt2
         (NormalC vName
           [(NotStrict, ConT ''T.Vector `AppT` type_)]) []
 
+-}
 
   let pTypes = [ (False, False, ''Word8  , 'W8#  , GDT_Byte    )
                , (False, False, ''Word16 , 'W16# , GDT_UInt16  )
@@ -185,26 +187,33 @@ deriveGDALType name typeQ gtypeQ toInt fromInt toReal fromReal toInt2 fromInt2
   j <- newName "j"
   dt <- newName "dt"
 
+  fromDouble' <- fromReal
+  toDouble' <- toReal
+
   let gInstClauses = concat arrayClauses ++ [
           ('dataType, Clause  [WildP] (NormalB (gtype)) [])
+        , ('fromDouble, Clause  [] (NormalB (fromDouble')) [])
+        , ('toDouble, Clause  [] (NormalB (toDouble')) [])
+        {-
         , ('unsafeAsNative,
             Clause
               [ConP vName [VarP tv]]
-              (NormalB (VarE 'T.unsafeWith `AppE` VarE tv)) [])
+              (NormalB (VarE 'T.unsafeAsNative `AppE` VarE tv)) [])
         , ('unsafeAsNativeM,
             Clause
               [ConP mvName [VarP tv]]
-              (NormalB (VarE 'T.unsafeWithM `AppE` VarE tv)) [])
+              (NormalB (VarE 'T.unsafeAsNativeM `AppE` VarE tv)) [])
         , ('unsafeAsDataType,
             Clause
               [VarP dt, ConP vName [VarP tv]]
-              (NormalB (VarE 'T.unsafeWithAsDataType `AppE` VarE dt `AppE` VarE tv)) [])
+              (NormalB (VarE 'T.unsafeAsDataType `AppE` VarE dt `AppE` VarE tv)) [])
         , ('newMVector,
             Clause
               [VarP dt, VarP j]
               (NormalB (ConE mvName `liftE`
-                          (VarE 'T.newTMVector `AppE` VarE dt `AppE` VarE j)
+                          (VarE 'T.newMVector `AppE` VarE dt `AppE` VarE j)
                        )) [])
+        -}
         ]
 
   let instanceGDALType =
@@ -212,9 +221,9 @@ deriveGDALType name typeQ gtypeQ toInt fromInt toReal fromReal toInt2 fromInt2
          (ConT ''GDALType `AppT` type_)
          (mkMultiClauseFuns gInstClauses)
   return
-    [ dataMVector, instanceMVector
-    , dataVector, instanceVector
-    , instanceGDALType
+    [ instanceGDALType
+    -- , dataMVector, instanceMVector
+    -- , dataVector, instanceVector
     ]
 
 

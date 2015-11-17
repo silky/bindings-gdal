@@ -15,10 +15,10 @@ module GDAL.Internal.Vector.Translated (
   , IOVector
   , STVector
 
-  , unsafeWith
-  , unsafeWithM
-  , unsafeWithAsDataType
-  , newTMVector
+  , unsafeAsNative
+  , unsafeAsNativeM
+  , unsafeAsDataType
+  , newMVector
 ) where
 
 import GDAL.Internal.Types.Pair (Pair(..))
@@ -62,12 +62,12 @@ data MVector s a =
 instance NFData (MVector s a) where
   rnf (MVector _ _ _ _) = ()
 
-newTMVector
+newMVector
   :: PrimMonad m
   => DataType
   -> Int
   -> m (MVector (PrimState m) a)
-newTMVector dt n
+newMVector dt n
   | n < 0 = error $ "GDAL.Vector.new: negative length: " ++ show n
   | n > mx = error $ "GDAL.Vector.new: length too large: " ++ show n
   | otherwise = do
@@ -81,7 +81,7 @@ newTMVector dt n
   where
     mx = maxBound `quot` (sizeOfDataType dt) :: Int
     size = sizeOfDataType dt
-{-# INLINE newTMVector #-}
+{-# INLINE newMVector #-}
 
 
 type IOVector = MVector RealWorld
@@ -104,7 +104,7 @@ instance GDALType a => M.MVector MVector a where
     where
       between x y z = x >= y && x < z
 
-  basicUnsafeNew = newTMVector (dataType (undefined :: a))
+  basicUnsafeNew = newMVector (dataType (undefined :: a))
   {-# INLINE basicUnsafeNew #-}
 
 #if MIN_VERSION_vector(0,11,0)
@@ -150,16 +150,6 @@ instance GDALType a => M.MVector MVector a where
     where
       sz = sizeOfDataType (toEnum dDt)
 
-
-unsafeWithM
-  :: IOVector a -> (DataType -> Ptr () -> IO b) -> IO b
-unsafeWithM MVector{mvData, mvOff, mvDataType} f = do
-  r <- f (toEnum mvDataType) (Ptr addr)
-  touch mvData
-  return r
-  where !(Addr addr) = mutableByteArrayContents mvData `plusAddr` (mvOff*size)
-        size = sizeOfDataType (toEnum mvDataType)
-{-# INLINE unsafeWithM #-}
 
 
 data Vector a =
@@ -227,21 +217,31 @@ instance NFData (Vector a) where
 
 
 
-unsafeWith :: Vector a -> (DataType -> Ptr () -> IO b) -> IO b
-unsafeWith Vector{vData, vDataType, vOff} f = do
+unsafeAsNative :: Vector a -> (DataType -> Ptr () -> IO b) -> IO b
+unsafeAsNative Vector{vData, vDataType, vOff} f = do
   r <- f (toEnum vDataType) (Ptr addr)
   touch vData
   return r
   where !(Addr addr) = byteArrayContents vData `plusAddr` (vOff*size)
         size = sizeOfDataType (toEnum vDataType)
-{-# INLINE unsafeWith #-}
+{-# INLINE unsafeAsNative #-}
 
-unsafeWithAsDataType
+unsafeAsNativeM
+  :: IOVector a -> (DataType -> Ptr () -> IO b) -> IO b
+unsafeAsNativeM MVector{mvData, mvOff, mvDataType} f = do
+  r <- f (toEnum mvDataType) (Ptr addr)
+  touch mvData
+  return r
+  where !(Addr addr) = mutableByteArrayContents mvData `plusAddr` (mvOff*size)
+        size = sizeOfDataType (toEnum mvDataType)
+{-# INLINE unsafeAsNativeM #-}
+
+unsafeAsDataType
   :: GDALType a => DataType -> Vector a -> (Ptr () -> IO b) -> IO b
-unsafeWithAsDataType dt v f
-  | fromEnum dt == vDataType v = unsafeWith v (const f)
+unsafeAsDataType dt v f
+  | fromEnum dt == vDataType v = unsafeAsNative v (const f)
   | otherwise = do
-      copy <- newTMVector dt (vLen v)
+      copy <- newMVector dt (vLen v)
       G.basicUnsafeCopy copy v
-      unsafeWithM copy (const f)
-{-# INLINE unsafeWithAsDataType #-}
+      unsafeAsNativeM copy (const f)
+{-# INLINE unsafeAsDataType #-}

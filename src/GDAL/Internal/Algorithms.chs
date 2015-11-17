@@ -42,9 +42,9 @@ module GDAL.Internal.Algorithms (
 import GDAL.Internal.Util (fromEnumC)
 import GDAL.Internal.Types
 import GDAL.Internal.Types.Value
-import GDAL.Internal.DataType (GDALType(..))
+import GDAL.Internal.DataType (GDALType(toDouble))
 import GDAL.Band.Generic
-import qualified GDAL.Internal.DataType as DT
+import qualified GDAL.Internal.Vector.Translated as DT
 import qualified GDAL.Internal.Vector.Masked as MV
 {#import GDAL.Internal.CPLString#}
 {#import GDAL.Internal.OSR #}
@@ -306,7 +306,7 @@ rasterizeLayersBuf getLayers mTransformer nodataValue
   withTransformerAndArg mTransformer (Just geotransform) $ \trans tArg ->
   with geotransform $ \gt -> do
     vec <- GM.replicate (sizeLen size) nodataValue :: IO (DT.IOVector a)
-    unsafeAsNativeM vec $ \dt vecPtr ->
+    DT.unsafeAsNativeM vec $ \dt vecPtr ->
       checkCPLError "RasterizeLayersBuf" $
       {#call GDALRasterizeLayersBuf as ^#}
         (castPtr vecPtr) nx ny (fromEnumC dt) 0 0 (fromIntegral len)
@@ -314,7 +314,7 @@ rasterizeLayersBuf getLayers mTransformer nodataValue
         tArg bValue opts pFun nullPtr
     liftM (MV.newWithNoData nodataValue) (G.unsafeFreeze vec)
   where
-    bValue    = realToFrac (DT.convertGType burnValue :: Double)
+    bValue    = realToFrac (toDouble burnValue)
     XY nx ny  = fmap fromIntegral size
 
 
@@ -347,12 +347,12 @@ createGridIO options noDataVal progressFun points envelope size =
     let xs = St.unsafeCast (St.map (px . gpXY) points)
         ys = St.unsafeCast (St.map (py . gpXY) points)
         zs = St.unsafeCast (St.map gpZ         points)
-    out <- newMVector DT.GDT_Float64 (sizeLen size)
+    out <- GM.new (sizeLen size)
     checkCPLError "GDALGridCreate" $
       St.unsafeWith xs $ \pXs ->
       St.unsafeWith ys $ \pYs ->
       St.unsafeWith zs $ \pZs ->
-      unsafeAsNativeM out $ \dt pOut ->
+      DT.unsafeAsNativeM out $ \dt pOut ->
       {#call GDALGridCreate as ^#}
         (fromEnumC (gridAlgorithm options))
         (castPtr opts)
@@ -372,7 +372,7 @@ createGridIO options noDataVal progressFun points envelope size =
         nullPtr
     liftM (MV.newWithNoData noDataVal) (G.unsafeFreeze out)
   where
-    cNoData = realToFrac (DT.convertGType noDataVal :: Double)
+    cNoData                        = realToFrac (toDouble noDataVal)
     XY nx ny                       = fmap fromIntegral size
     Envelope (XY x0 y0) (XY x1 y1) = fmap realToFrac envelope
 {-# INLINE createGridIO #-}

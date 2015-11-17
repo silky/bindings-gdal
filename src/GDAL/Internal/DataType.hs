@@ -16,13 +16,8 @@
 module GDAL.Internal.DataType (
     GDALType (..)
   , DataType (..)
-  , MVector
-  , Vector
-  , IOVector
-  , STVector
 
   , sizeOfDataType
-  , convertGType
 
   , gdtByte
   , gdtUInt16
@@ -50,27 +45,22 @@ import Data.Primitive.MachDeps
 import Data.Primitive.ByteArray
 import Data.Word (Word8, Word16, Word32)
 
-import qualified Data.Vector.Generic           as G
-import qualified Data.Vector.Generic.Mutable   as M
 
 import Foreign.Ptr (Ptr)
 
 import GHC.Base (MutableByteArray#, ByteArray#, State#, Int#, Int(..))
 
-data family Vector    a
-data family MVector s a
-type instance G.Mutable Vector = MVector
-
-type STVector = MVector
-type IOVector = MVector RealWorld
 
 type DataType# = Int#
 
 ------------------------------------------------------------------------------
 -- GDALType
 ------------------------------------------------------------------------------
-class (G.Vector Vector a , M.MVector MVector a) => GDALType a where
+class GDALType a where
   dataType        :: a -> DataType
+
+  toDouble       :: a -> Double
+  fromDouble     :: Double -> a
 
   gReadByteArray# :: DataType# -> MutableByteArray# s -> Int# -> State# s
                   -> (# State# s, a #)
@@ -78,22 +68,15 @@ class (G.Vector Vector a , M.MVector MVector a) => GDALType a where
                    -> State# s
   gIndexByteArray# :: DataType# -> ByteArray# -> Int# -> a
 
+{-
   newMVector      :: PrimMonad m
                   => DataType -> Int -> m (MVector (PrimState m) a)
   unsafeAsNative  :: Vector a -> (DataType -> Ptr () -> IO b) -> IO b
   unsafeAsDataType  :: DataType -> Vector a -> (Ptr () -> IO b) -> IO b
   unsafeAsNativeM :: IOVector a -> (DataType -> Ptr () -> IO b) -> IO b
+-}
 
 
-convertGType :: forall a b. (GDALType a, GDALType b) => a -> b
-convertGType a = runST $ do
-  MutableByteArray arr# <- newByteArray (sizeOfDataType dDt)
-  primitive_ (gWriteByteArray# dDt# arr# 0# a)
-  primitive (gReadByteArray# dDt# arr# 0#)
-  where !(I# sDt#) = fromEnum (dataType (undefined :: a))
-        !(I# dDt#) = fromEnum dDt
-        dDt        = dataType (undefined :: b)
-{-# INLINE convertGType #-}
 
 ------------------------------------------------------------------------------
 -- DataType
