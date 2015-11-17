@@ -66,9 +66,6 @@ class GDALType a where
                    -> State# s
   gIndexByteArray# :: DataType# -> ByteArray# -> Int# -> a
 
-  toDouble   :: a -> Double
-  fromDouble :: Double -> a
-
 {-
   newMVector      :: PrimMonad m
                   => DataType -> Int -> m (MVector (PrimState m) a)
