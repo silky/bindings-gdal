@@ -27,6 +27,7 @@ module GDAL.Band.Translated (
   , bandNodataValue
   , setBandNodataValue
   , getBand
+  , isNative
   , addBand
   , fillBand
   , createMaskBand
@@ -41,8 +42,8 @@ module GDAL.Band.Translated (
   , ifoldlM'
 ) where
 
-import qualified GDAL.Internal.Vector.Translated as DT
-import GDAL.Internal.DataType (GDALType, DataType)
+import qualified GDAL.Internal.DataType as DT
+import GDAL.Internal.DataType (GDALType(dataType), DataType)
 
 import GDAL.Internal.Types
 import GDAL.Internal.CPLError (throwBindingException)
@@ -79,11 +80,11 @@ import Data.Typeable (Typeable)
 
 import Text.Read     ( Read(..), readListPrecDefault )
 
-newtype Band s a (t::AccessMode) = Band BandH
+newtype Band s a (t::AccessMode) = Band (DataType, BandH)
 
 
-newtype instance BG.MVector Band s a = MVector (DT.MVector s a)
-newtype instance BG.Vector Band    a = Vector (DT.Vector     a)
+newtype instance BG.MVector Band s a = MVector (DT.TMVector s a)
+newtype instance BG.Vector Band    a = Vector (DT.TVector     a)
 
 type MVector = BG.MVector Band
 type Vector  = BG.Vector Band
@@ -133,13 +134,13 @@ instance GDALType a => G.Vector Vector a where
   elemseq _ = seq
 
 instance MajorObject (Band s a) t where
-  majorObject (Band (BandH p)) = MajorObjectH (castPtr p)
+  majorObject (Band (_, BandH p)) = MajorObjectH (castPtr p)
 
 instance GDALType a => BG.Band Band s a t where
-  bandH (Band h) = h
+  bandH (Band (_,h)) = h
   {-# INLINE bandH #-}
 
-  fromBandH h    = Band h
+  fromBandH h    = Band (bandDataTypeH h, h)
   {-# INLINE fromBandH #-}
 
   readWindow b win sz =
@@ -159,12 +160,12 @@ instance GDALType a => BG.Band Band s a t where
   writeBlock b ix (Vector v) = liftIO $ do
     when (BG.bandBlockLen b /= G.length v) $
       throwBindingException (InvalidBlockSize (G.length v))
-    DT.unsafeAsDataType (BG.bandDataType b) v $ writeBlockH (BG.bandH b) ix
+    DT.unsafeAsDataType (bandDataType b) v $ writeBlockH (BG.bandH b) ix
   {-# INLINE writeBlock #-}
 
   blockLoader b = do
     liftIO $ do
-      v <- DT.newMVector (BG.bandDataType b) (BG.bandBlockLen b)
+      v <- DT.newMVector (bandDataType b) (BG.bandBlockLen b)
       return (MVector v, load v)
     where load v ix = liftIO $ DT.unsafeAsNativeM v $
                                const (inline readBlockH bPtr ix)
@@ -188,6 +189,10 @@ getBand
 getBand = BG.getBand
 {-# INLINE getBand #-}
 
+isNative :: forall s a t. GDALType a => Band s a t -> Bool
+isNative b = dataType (undefined :: a) == bandDataType b
+{-# INLINE isNative #-}
+
 addBand
   :: GDALType a
   => RWDataset s -> DataType -> OptionList -> GDAL s (Band s a ReadWrite)
@@ -199,7 +204,7 @@ fillBand = BG.fillBand
 {-# INLINE fillBand #-}
 
 bandDataType :: GDALType a => Band s a t -> DataType
-bandDataType = BG.bandDataType
+bandDataType (Band (d,_)) = d
 {-# INLINE bandDataType #-}
 
 bandBlockSize :: GDALType a => Band s a t -> Size

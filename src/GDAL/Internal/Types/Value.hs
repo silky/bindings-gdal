@@ -15,6 +15,7 @@ module GDAL.Internal.Types.Value (
   , fromValue
 ) where
 
+import GDAL.Internal.Vector.Masked (Nullable (..), Masked)
 
 import Control.Applicative (Applicative(..), (<$>))
 import Control.DeepSeq (NFData(rnf))
@@ -120,3 +121,14 @@ fromValue :: a -> Value a -> a
 fromValue v NoData    = v
 fromValue _ (Value v) = v
 {-# INLINE fromValue #-}
+
+instance Eq a => Nullable (Value a) where
+  type Elem (Value a)       = a
+  nullElem = NoData
+  {-# INLINE nullElem #-}
+  toNullable = Value
+  {-# INLINE toNullable #-}
+  fromNullable = fromValue
+  {-# INLINE fromNullable #-}
+  isNull = isNoData
+  {-# INLINE isNull #-}

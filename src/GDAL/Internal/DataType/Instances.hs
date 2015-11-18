@@ -29,7 +29,7 @@ imagPart (_ :+ a) = a
 
 deriveGDALType "Word8"
   [t|Word8|]
-  [|GDT_Byte|]
+  [|gdtByte|]
   [|fromIntegral|]
   [|fromIntegral|]
   [|fromIntegral|]
@@ -40,7 +40,7 @@ deriveGDALType "Word8"
   [|(truncate.fst.unPair)|]
 deriveGDALType "Word16"
   [t|Word16|]
-  [|GDT_UInt16|]
+  [|gdtUInt16|]
   [|fromIntegral|]
   [|fromIntegral|]
   [|fromIntegral|]
@@ -51,7 +51,7 @@ deriveGDALType "Word16"
   [|(truncate.fst.unPair)|]
 deriveGDALType "Word32"
   [t|Word32|]
-  [|GDT_UInt32|]
+  [|gdtUInt32|]
   [|fromIntegral|]
   [|fromIntegral|]
   [|fromIntegral|]
@@ -62,7 +62,7 @@ deriveGDALType "Word32"
   [|(truncate.fst.unPair)|]
 deriveGDALType "Int8"
   [t|Int8|]
-  [|GDT_Byte|]
+  [|gdtByte|]
   [|fromIntegral|]
   [|fromIntegral|]
   [|fromIntegral|]
@@ -73,7 +73,7 @@ deriveGDALType "Int8"
   [|(truncate.fst.unPair)|]
 deriveGDALType "Int16"
   [t|Int16|]
-  [|GDT_Int16|]
+  [|gdtInt16|]
   [|fromIntegral|]
   [|fromIntegral|]
   [|fromIntegral|]
@@ -84,7 +84,7 @@ deriveGDALType "Int16"
   [|(truncate.fst.unPair)|]
 deriveGDALType "Int32"
   [t|Int32|]
-  [|GDT_Int32|]
+  [|gdtInt32|]
   [|fromIntegral|]
   [|fromIntegral|]
   [|fromIntegral|]
@@ -95,7 +95,7 @@ deriveGDALType "Int32"
   [|(truncate.fst.unPair)|]
 deriveGDALType "Float"
   [t|Float|]
-  [|GDT_Float32|]
+  [|gdtFloat32|]
   [|truncate|]
   [|fromIntegral|]
   [|realToFrac|]
@@ -106,7 +106,7 @@ deriveGDALType "Float"
   [|(realToFrac.fst.unPair)|]
 deriveGDALType "Double"
   [t|Double|]
-  [|GDT_Float64|]
+  [|gdtFloat64|]
   [|truncate|]
   [|fromIntegral|]
   [|realToFrac|]
@@ -117,7 +117,7 @@ deriveGDALType "Double"
   [|(realToFrac.fst.unPair)|]
 deriveGDALType "PairInt16"
   [t|Pair Int16|]
-  [|GDT_CInt16|]
+  [|gdtCInt16|]
   [|fromIntegral . fst .unPair|]
   [|\w->Pair (fromIntegral w, 0)|]
   [|fromIntegral . fst .unPair|]
@@ -128,7 +128,7 @@ deriveGDALType "PairInt16"
   [|fmap truncate|]
 deriveGDALType "PairInt32"
   [t|Pair Int32|]
-  [|GDT_CInt32|]
+  [|gdtCInt32|]
   [|fromIntegral . fst .unPair|]
   [|\w->Pair (fromIntegral w, 0)|]
   [|fromIntegral . fst .unPair|]
@@ -139,7 +139,7 @@ deriveGDALType "PairInt32"
   [|fmap truncate|]
 deriveGDALType "PairFloat"
   [t|Pair Float|]
-  [|GDT_CFloat32|]
+  [|gdtCFloat32|]
   [|truncate . fst .unPair|]
   [|\w->Pair (fromIntegral w, 0)|]
   [|realToFrac . fst .unPair|]
@@ -150,7 +150,7 @@ deriveGDALType "PairFloat"
   [|fmap realToFrac|]
 deriveGDALType "PairDouble"
   [t|Pair Double|]
-  [|GDT_CFloat64|]
+  [|gdtCFloat64|]
   [|truncate . fst .unPair|]
   [|\w->Pair (fromIntegral w, 0)|]
   [|realToFrac . fst .unPair|]
@@ -162,7 +162,7 @@ deriveGDALType "PairDouble"
 
 deriveGDALType "ComplexInt16"
   [t|Complex Int16|]
-  [|GDT_CInt16|]
+  [|gdtCInt16|]
   [|fromIntegral . realPart|]
   [|\w->fromIntegral w :+ 0|]
   [|fromIntegral . realPart|]
@@ -173,7 +173,7 @@ deriveGDALType "ComplexInt16"
   [|uncurry (:+) . unPair . fmap truncate|]
 deriveGDALType "ComplexInt32"
   [t|Complex Int32|]
-  [|GDT_CInt32|]
+  [|gdtCInt32|]
   [|fromIntegral . realPart|]
   [|\w->fromIntegral w :+ 0|]
   [|fromIntegral . realPart|]
@@ -184,7 +184,7 @@ deriveGDALType "ComplexInt32"
   [|uncurry (:+) . unPair . fmap truncate|]
 deriveGDALType "ComplexFloat"
   [t|Complex Float|]
-  [|GDT_CFloat32|]
+  [|gdtCFloat32|]
   [|truncate . realPart|]
   [|\w->fromIntegral w :+ 0|]
   [|realToFrac . realPart|]
@@ -195,7 +195,7 @@ deriveGDALType "ComplexFloat"
   [|uncurry (:+) . unPair . fmap realToFrac|]
 deriveGDALType "ComplexDouble"
   [t|Complex Double|]
-  [|GDT_CFloat64|]
+  [|gdtCFloat64|]
   [|truncate . realPart|]
   [|\w->fromIntegral w :+ 0|]
   [|realToFrac . realPart|]

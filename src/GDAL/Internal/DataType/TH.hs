@@ -62,17 +62,17 @@ deriveGDALType name typeQ gtypeQ toInt fromInt toReal fromReal toInt2 fromInt2
         (ConT n)               -> nameBase n
         _                      -> name
 
-  let pTypes' = [ (False, False, ''Word8  , 'W8#  , GDT_Byte    )
-                , (False, False, ''Word16 , 'W16# , GDT_UInt16  )
-                , (False, False, ''Word32 , 'W32# , GDT_UInt32  )
-                , (False, False, ''Int16  , 'I16# , GDT_Int16   )
-                , (False, False, ''Int32  , 'I32# , GDT_Int32   )
-                , (False, True , ''Float  , 'F#   , GDT_Float32 )
-                , (False, True , ''Double , 'D#   , GDT_Float64 )
-                , (True , False, ''Int16  , 'I16# , GDT_CInt16  )
-                , (True , False, ''Int32  , 'I32# , GDT_CInt32  )
-                , (True , True , ''Float  , 'F#   , GDT_CFloat32)
-                , (True , True , ''Double , 'D#   , GDT_CFloat64)
+  let pTypes' = [ (False, False, ''Word8  , 'W8#  , gdtByte    )
+                , (False, False, ''Word16 , 'W16# , gdtUInt16  )
+                , (False, False, ''Word32 , 'W32# , gdtUInt32  )
+                , (False, False, ''Int16  , 'I16# , gdtInt16   )
+                , (False, False, ''Int32  , 'I32# , gdtInt32   )
+                , (False, True , ''Float  , 'F#   , gdtFloat32 )
+                , (False, True , ''Double , 'D#   , gdtFloat64 )
+                , (True , False, ''Int16  , 'I16# , gdtCInt16  )
+                , (True , False, ''Int32  , 'I32# , gdtCInt32  )
+                , (True , True , ''Float  , 'F#   , gdtCFloat32)
+                , (True , True , ''Double , 'D#   , gdtCFloat64)
                 ]
       pTypes = sortBy (\a b -> if a/=b && pTy a == tName then LT else GT)
                       pTypes'

@@ -76,7 +76,7 @@ import GHC.Exts (IsList(..), inline)
 import Text.Read ( Read(..), readListPrecDefault )
 
 
-newtype Band s a (t::AccessMode) = Band BandH
+newtype Band s a (t::AccessMode) = Band (DataType, BandH)
 
 newtype instance BG.MVector Band s a = MV_Band (St.MVector s a)
 newtype instance BG.Vector Band    a = V_Band  (St.Vector    a)
@@ -203,13 +203,13 @@ instance NativeType a => NFData (MVector s a) where
 
 
 instance MajorObject (Band s a) t where
-  majorObject (Band (BandH p)) = MajorObjectH (castPtr p)
+  majorObject (Band (_, BandH p)) = MajorObjectH (castPtr p)
 
 instance NativeType a => BG.Band Band s a t where
-  bandH (Band h) = h
+  bandH (Band (_,h)) = h
   {-# INLINE bandH #-}
 
-  fromBandH h    = Band h
+  fromBandH h    = Band (bandDataTypeH h, h)
   {-# INLINE fromBandH #-}
 
   validate b
@@ -275,7 +275,7 @@ fillBand = BG.fillBand
 {-# INLINE fillBand #-}
 
 bandDataType :: NativeType a => Band s a t -> DataType
-bandDataType = BG.bandDataType
+bandDataType (Band (d,_)) = d
 {-# INLINE bandDataType #-}
 
 bandBlockSize :: NativeType a => Band s a t -> Size

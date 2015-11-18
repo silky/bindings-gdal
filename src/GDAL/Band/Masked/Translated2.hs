@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module GDAL.Band.Masked.Translated2 (
     Band
@@ -20,6 +21,7 @@ module GDAL.Band.Masked.Translated2 (
   , bandNodataValue
   , setBandNodataValue
   , getBand
+  , isNative
   , addBand
   , fillBand
   , createMaskBand
@@ -39,7 +41,7 @@ import GDAL.Band.Masked.Base (Nullable, Elem)
 import qualified GDAL.Band.Translated as T
 import qualified GDAL.Band.Generic as BG
 
-import GDAL.Internal.DataType (GDALType, DataType)
+import GDAL.Internal.DataType (GDALType(dataType), DataType)
 import GDAL.Internal.Types
 import GDAL.Internal.GDAL.Types (
     Dataset
@@ -65,6 +67,12 @@ type STVector = BG.STVector Band
 bandCount :: Dataset s t -> GDAL s Int
 bandCount = BG.bandCount
 {-# INLINE bandCount #-}
+
+isNative
+  :: forall s a t. (GDALType (Elem a), Nullable a)
+  => Band s a t -> Bool
+isNative = T.isNative . M.baseBand
+{-# INLINE isNative #-}
 
 getBand :: (GDALType (Elem a), Nullable a) => Int -> Dataset s t -> GDAL s (Band s a t)
 getBand = BG.getBand

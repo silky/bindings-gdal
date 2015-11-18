@@ -31,20 +31,20 @@ library
                    , GDAL.Internal.GDAL.Types
                    , GDAL.Band.Generic
                    , GDAL.Band.Generic.Internal
-                   --, GDAL.Band.Masked.Base
-                   --, GDAL.Band.Native
-                   --, GDAL.Band.Masked.Native
-                   -- , GDAL.Band.Translated
+                   , GDAL.Band.Masked.Base
+                   , GDAL.Band.Native
+                   , GDAL.Band.Masked.Native
+                   , GDAL.Band.Translated
                    , GDAL.Band.Masked.Translated
-                   --, GDAL.Band.Masked.Translated2
+                   , GDAL.Band.Masked.Translated2
                    , GDAL.Algorithms
                    , GDAL.Warper
 
                    , GDAL.Internal.Types
                    , GDAL.Internal.Types.Pair
                    , GDAL.Internal.Types.Value
-                   --, GDAL.Internal.Vector.Translated
-                   --, GDAL.Internal.Vector.Masked
+                   , GDAL.Internal.Vector.Translated
+                   , GDAL.Internal.Vector.Masked
                    , GDAL.Internal.DataType
                    , GDAL.Internal.DataType.TH
                    , GDAL.Internal.DataType.Instances

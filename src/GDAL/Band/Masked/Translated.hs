@@ -215,8 +215,8 @@ instance GDALType a => BG.Band Band s (Value a) t where
         liftIO $ do
           maskBand <- bandMaskH (BG.bandH b)
           mv <- M.new (sizeLen sz)
-          adviseRead [] GDT_Byte maskBand win sz
-          Stm.unsafeWith mv $ rasterIO GDT_Byte GF_Read maskBand win sz 0
+          adviseRead [] gdtByte maskBand win sz
+          Stm.unsafeWith mv $ rasterIO gdtByte GF_Read maskBand win sz 0
           v <- G.unsafeFreeze mv
           return (Vector (newWithMask v vec))
   {-# INLINE readWindow #-}
@@ -234,7 +234,7 @@ instance GDALType a => BG.Band Band s (Value a) t where
               writeT v'
               liftIO $ do
                 mb <- bandMaskH (BG.bandH b)
-                St.unsafeWith m $ rasterIO GDT_Byte GF_Write mb win sz 0
+                St.unsafeWith m $ rasterIO gdtByte GF_Write mb win sz 0
     where
       writeT vt = liftIO $ unsafeAsNative vt $ \dt ->
                     rasterIO dt GF_Write (BG.bandH b) win sz 0
@@ -285,7 +285,7 @@ instance GDALType a => BG.Band Band s (Value a) t where
 maskIO
   :: (GDALType a, BG.Band Band s (Value a) t)
   => RWFlag -> BandH -> Band s (Value a) t -> BlockIx -> Ptr c -> IO ()
-maskIO mode mbh b ix ptr = rasterIO GDT_Byte mode mbh win sz spacing ptr
+maskIO mode mbh b ix ptr = rasterIO gdtByte mode mbh win sz spacing ptr
   where
     bi  = fmap fromIntegral ix
     bs  = fmap fromIntegral (BG.bandBlockSize b)
@@ -317,7 +317,7 @@ bandCount = BG.bandCount
 
 
 isNative :: forall s a t. GDALType a => Band s (Value a) t -> Bool
-isNative (Band (d,_)) = dataType (undefined :: a) == d
+isNative b = dataType (undefined :: a) == bandDataType b
 {-# INLINE isNative #-}
 
 getBand :: GDALType a => Int -> Dataset s t -> GDAL s (Band s (Value a) t)

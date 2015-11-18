@@ -6,7 +6,6 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
@@ -16,10 +15,11 @@
 
 module GDAL.Internal.DataType (
     GDALType (..)
-  , DataType (..)
+  , DataType
+  , TMVector
+  , TVector
 
   , sizeOfDataType
-  --, convertGType
 
   , newMVector
   , unsafeAsNative
@@ -80,15 +80,14 @@ import GHC.Int (Int16, Int32)
 import GHC.Base
 import GHC.Ptr (Ptr(..))
 
-import Unsafe.Coerce (unsafeCoerce)
 
-type DataType# = Int#
+import Unsafe.Coerce (unsafeCoerce)
 
 ------------------------------------------------------------------------------
 -- GDALType
 ------------------------------------------------------------------------------
 class Eq a => GDALType a where
-  dataType        :: a -> DataType
+  dataType   :: a -> DataType
 
   toDouble   :: a -> Double
   fromDouble :: Double -> a
@@ -115,105 +114,79 @@ convertGType a = runST $ do
 -- DataType
 ------------------------------------------------------------------------------
 
--- TODO: Usar newtype alrededor de Int
-data DataType
-  = GDT_Unknown
-  | GDT_Byte
-  | GDT_UInt16
-  | GDT_UInt32
-  | GDT_Int16
-  | GDT_Int32
-  | GDT_Float32
-  | GDT_Float64
-  | GDT_CInt16
-  | GDT_CInt32
-  | GDT_CFloat32
-  | GDT_CFloat64
+type DataType# = Int#
+
+newtype DataType = DataType Int
   deriving (Eq, Show)
 
 instance Enum DataType where
   {-# INLINE fromEnum #-}
   {-# INLINE toEnum #-}
-  fromEnum dt =
-    case dt of
-      GDT_Unknown  -> GDT_UNKNOWN
-      GDT_Byte     -> GDT_BYTE
-      GDT_UInt16   -> GDT_UINT16
-      GDT_UInt32   -> GDT_UINT32
-      GDT_Int16    -> GDT_INT16
-      GDT_Int32    -> GDT_INT32
-      GDT_Float32  -> GDT_FLOAT32
-      GDT_Float64  -> GDT_FLOAT64
-      GDT_CInt16   -> GDT_CINT16
-      GDT_CInt32   -> GDT_CINT32
-      GDT_CFloat32 -> GDT_CFLOAT32
-      GDT_CFloat64 -> GDT_CFLOAT64
-  toEnum i =
-    case i of
-      GDT_UNKNOWN  -> GDT_Unknown
-      GDT_BYTE     -> GDT_Byte
-      GDT_UINT16   -> GDT_UInt16
-      GDT_UINT32   -> GDT_UInt32
-      GDT_INT16    -> GDT_Int16
-      GDT_INT32    -> GDT_Int32
-      GDT_FLOAT32  -> GDT_Float32
-      GDT_FLOAT64  -> GDT_Float64
-      GDT_CINT16   -> GDT_CInt16
-      GDT_CINT32   -> GDT_CInt32
-      GDT_CFLOAT32 -> GDT_CFloat32
-      GDT_CFLOAT64 -> GDT_CFloat64
-      _            -> error "toEnum DataType: Invalid value"
+  fromEnum (DataType d) = d
+  toEnum                = DataType
 
 gdtByte :: DataType
-gdtByte = GDT_Byte
+gdtByte = DataType GDT_BYTE
+{-# INLINE gdtByte #-}
 
 gdtUInt16 :: DataType
-gdtUInt16 = GDT_UInt16
+gdtUInt16 = DataType GDT_UINT16
+{-# INLINE gdtUInt16 #-}
 
 gdtUInt32 :: DataType
-gdtUInt32 = GDT_UInt32
+gdtUInt32 = DataType GDT_UINT32
+{-# INLINE gdtUInt32 #-}
 
 gdtInt16 :: DataType
-gdtInt16 = GDT_Int16
+gdtInt16 = DataType GDT_INT16
+{-# INLINE gdtInt16 #-}
 
 gdtInt32 :: DataType
-gdtInt32 = GDT_Int32
+gdtInt32 = DataType GDT_INT32
+{-# INLINE gdtInt32 #-}
 
 gdtFloat32 :: DataType
-gdtFloat32 = GDT_Float32
+gdtFloat32 = DataType GDT_FLOAT32
+{-# INLINE gdtFloat32 #-}
 
 gdtFloat64 :: DataType
-gdtFloat64 = GDT_Float64
+gdtFloat64 = DataType GDT_FLOAT64
+{-# INLINE gdtFloat64 #-}
 
 gdtCInt16 :: DataType
-gdtCInt16 = GDT_CInt16
+gdtCInt16 = DataType GDT_CINT16
+{-# INLINE gdtCInt16 #-}
 
 gdtCInt32 :: DataType
-gdtCInt32 = GDT_CInt32
+gdtCInt32 = DataType GDT_CINT32
+{-# INLINE gdtCInt32 #-}
 
 gdtCFloat32 :: DataType
-gdtCFloat32 = GDT_CFloat32
+gdtCFloat32 = DataType GDT_CFLOAT32
+{-# INLINE gdtCFloat32 #-}
 
 gdtCFloat64 :: DataType
-gdtCFloat64 = GDT_CFloat64
+gdtCFloat64 = DataType GDT_CFLOAT64
+{-# INLINE gdtCFloat64 #-}
 
 gdtUnknown :: DataType
-gdtUnknown = GDT_Unknown
+gdtUnknown = DataType GDT_UNKNOWN
+{-# INLINE gdtUnknown #-}
 
 
 sizeOfDataType :: DataType -> Int
 sizeOfDataType dt
-  | dt == GDT_Byte     = sIZEOF_CHAR
-  | dt == GDT_UInt16   = sIZEOF_WORD16
-  | dt == GDT_UInt32   = sIZEOF_WORD32
-  | dt == GDT_Int16    = sIZEOF_INT16
-  | dt == GDT_Int32    = sIZEOF_INT32
-  | dt == GDT_Float32  = sIZEOF_FLOAT
-  | dt == GDT_Float64  = sIZEOF_DOUBLE
-  | dt == GDT_CInt16   = sIZEOF_INT16 * 2
-  | dt == GDT_CInt32   = sIZEOF_INT32 * 2
-  | dt == GDT_CFloat32 = sIZEOF_FLOAT * 2
-  | dt == GDT_CFloat64 = sIZEOF_DOUBLE * 2
+  | dt == gdtByte     = sIZEOF_CHAR
+  | dt == gdtUInt16   = sIZEOF_WORD16
+  | dt == gdtUInt32   = sIZEOF_WORD32
+  | dt == gdtInt16    = sIZEOF_INT16
+  | dt == gdtInt32    = sIZEOF_INT32
+  | dt == gdtFloat32  = sIZEOF_FLOAT
+  | dt == gdtFloat64  = sIZEOF_DOUBLE
+  | dt == gdtCInt16   = sIZEOF_INT16 * 2
+  | dt == gdtCInt32   = sIZEOF_INT32 * 2
+  | dt == gdtCFloat32 = sIZEOF_FLOAT * 2
+  | dt == gdtCFloat64 = sIZEOF_DOUBLE * 2
   | otherwise         = error "sizeOfDataType: GDT_Unknown"
 {-# INLINE sizeOfDataType #-}
 
@@ -229,7 +202,7 @@ sizeOfDataType dt
 data TMVector s a =
   TMVector { mvLen      :: {-# UNPACK #-} !Int
           , mvOff      :: {-# UNPACK #-} !Int
-          , mvDataType :: {-# UNPACK #-} !Int
+          , mvDataType :: {-# UNPACK #-} !DataType
           , mvData     :: {-# UNPACK #-} !(MutableByteArray s)
           }
   deriving ( Typeable )
@@ -250,7 +223,7 @@ newMVector dt n
       return TMVector
           { mvLen      = n
           , mvOff      = 0
-          , mvDataType = fromEnum dt
+          , mvDataType = dt
           , mvData     = arr
           }
   where
@@ -286,22 +259,22 @@ instance GDALType a => M.MVector TMVector a where
   {-# INLINE basicInitialize #-}
   basicInitialize TMVector{mvOff=off, mvLen=n, mvData=v, mvDataType} =
     setByteArray v (off * size) (n * size) (0 :: Word8)
-    where size = sizeOfDataType (toEnum mvDataType)
+    where size = sizeOfDataType mvDataType
 #endif
 
   {-# INLINE basicUnsafeRead #-}
   basicUnsafeRead TMVector{ mvData     = MutableByteArray arr#
-                         , mvOff      = I# o#
-                         , mvDataType = I# dt#
-                         } (I# i#) =
+                          , mvOff      = I# o#
+                          , mvDataType = DataType (I# dt#)
+                          } (I# i#) =
     primitive (gReadByteArray# dt# arr# (o# +# i#))
 
 
   {-# INLINE basicUnsafeWrite #-}
   basicUnsafeWrite TMVector{ mvData     = MutableByteArray arr#
-                          , mvOff      = I# o#
-                          , mvDataType = I# dt#
-                          } (I# i#) v =
+                           , mvOff      = I# o#
+                           , mvDataType = DataType (I# dt#)
+                           } (I# i#) v =
     primitive_ (gWriteByteArray# dt# arr# (o# +# i#) v)
 
   {-# INLINE basicUnsafeCopy #-}
@@ -310,7 +283,7 @@ instance GDALType a => M.MVector TMVector a where
     | sDt == dDt = copyMutableByteArray dst (i*sz) src (j*sz) (n*sz)
     | otherwise  = loop 0
     where
-      sz = sizeOfDataType (toEnum dDt)
+      sz = sizeOfDataType dDt
       loop !ix
         | ix < mvLen dVec = do
             M.basicUnsafeRead sVec ix >>= M.basicUnsafeWrite dVec ix
@@ -323,7 +296,7 @@ instance GDALType a => M.MVector TMVector a where
     | sDt == dDt = moveByteArray dst (i*sz) src (j*sz) (n*sz)
     | otherwise  = M.basicUnsafeCopy dVec sVec
     where
-      sz = sizeOfDataType (toEnum dDt)
+      sz = sizeOfDataType dDt
 
 
 ------------------------------------------------------------------------------
@@ -333,7 +306,7 @@ instance GDALType a => M.MVector TMVector a where
 data TVector a =
   TVector { vLen     :: {-# UNPACK #-} !Int
           , vOff      :: {-# UNPACK #-} !Int
-          , vDataType :: {-# UNPACK #-} !Int
+          , vDataType :: {-# UNPACK #-} !DataType
           , vData     :: {-# UNPACK #-} !ByteArray
           }
   deriving ( Typeable )
@@ -373,9 +346,9 @@ instance GDALType a => G.Vector TVector a where
 
   {-# INLINE basicUnsafeIndexM #-}
   basicUnsafeIndexM TVector{ vData     = ByteArray arr#
-                          , vOff      = I# o#
-                          , vDataType = I# dt#
-                          } (I# i#) =
+                           , vOff      = I# o#
+                           , vDataType = DataType (I# dt#)
+                           } (I# i#) =
     return $! gIndexByteArray# dt# arr# (o# +# i#)
 
   {-# INLINE basicUnsafeCopy #-}
@@ -384,7 +357,7 @@ instance GDALType a => G.Vector TVector a where
     | sDt == dDt = copyByteArray dst (i*sz) src (j*sz) (n*sz)
     | otherwise  = loop 0
     where
-      sz = sizeOfDataType (toEnum dDt)
+      sz = sizeOfDataType dDt
       loop !ix
         | ix < mvLen dVec = do
             G.basicUnsafeIndexM sVec ix >>= M.basicUnsafeWrite dVec ix
@@ -401,27 +374,27 @@ instance NFData (TVector a) where
 
 unsafeAsNative :: TVector a -> (DataType -> Ptr () -> IO b) -> IO b
 unsafeAsNative TVector{vData, vDataType, vOff} f = do
-  r <- f (toEnum vDataType) (Ptr addr)
+  r <- f vDataType (Ptr addr)
   touch vData
   return r
   where !(Addr addr) = byteArrayContents vData `plusAddr` (vOff*size)
-        size = sizeOfDataType (toEnum vDataType)
+        size = sizeOfDataType vDataType
 {-# INLINE unsafeAsNative #-}
 
 unsafeAsNativeM
   :: IOTVector a -> (DataType -> Ptr () -> IO b) -> IO b
 unsafeAsNativeM TMVector{mvData, mvOff, mvDataType} f = do
-  r <- f (toEnum mvDataType) (Ptr addr)
+  r <- f mvDataType (Ptr addr)
   touch mvData
   return r
   where !(Addr addr) = mutableByteArrayContents mvData `plusAddr` (mvOff*size)
-        size = sizeOfDataType (toEnum mvDataType)
+        size = sizeOfDataType mvDataType
 {-# INLINE unsafeAsNativeM #-}
 
 unsafeAsDataType
   :: GDALType a => DataType -> TVector a -> (Ptr () -> IO b) -> IO b
 unsafeAsDataType dt v f
-  | fromEnum dt == vDataType v = unsafeAsNative v (const f)
+  | dt == vDataType v = unsafeAsNative v (const f)
   | otherwise = do
       copy <- newMVector dt (vLen v)
       G.basicUnsafeCopy copy v
@@ -441,7 +414,7 @@ maskNoData = 0
 data Mask v
   = AllValid
   | Mask      (v Word8)
-  | UseNoData {-# UNPACK #-} !Double
+  | UseNoData Double
 
 instance (GDALType a) => U.Unbox (Value a)
 

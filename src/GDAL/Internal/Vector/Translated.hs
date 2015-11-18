@@ -58,7 +58,7 @@ import GHC.Ptr (Ptr(..))
 data MVector s a =
   MVector { mvLen      :: {-# UNPACK #-} !Int
           , mvOff      :: {-# UNPACK #-} !Int
-          , mvDataType :: {-# UNPACK #-} !Int
+          , mvDataType :: {-# UNPACK #-} !DataType
           , mvData     :: {-# UNPACK #-} !(MutableByteArray s)
           }
   deriving ( Typeable )
@@ -79,7 +79,7 @@ newMVector dt n
       return MVector
           { mvLen      = n
           , mvOff      = 0
-          , mvDataType = fromEnum dt
+          , mvDataType = dt
           , mvData     = arr
           }
   where
@@ -115,23 +115,25 @@ instance GDALType a => M.MVector MVector a where
   {-# INLINE basicInitialize #-}
   basicInitialize MVector{mvOff=off, mvLen=n, mvData=v, mvDataType} =
     setByteArray v (off * size) (n * size) (0 :: Word8)
-    where size = sizeOfDataType (toEnum mvDataType)
+    where size = sizeOfDataType mvDataType
 #endif
 
   {-# INLINE basicUnsafeRead #-}
   basicUnsafeRead MVector{ mvData     = MutableByteArray arr#
                          , mvOff      = I# o#
-                         , mvDataType = I# dt#
+                         , mvDataType
                          } (I# i#) =
     primitive (gReadByteArray# dt# arr# (o# +# i#))
+    where !(I# dt#) = fromEnum mvDataType
 
 
   {-# INLINE basicUnsafeWrite #-}
   basicUnsafeWrite MVector{ mvData     = MutableByteArray arr#
                           , mvOff      = I# o#
-                          , mvDataType = I# dt#
+                          , mvDataType
                           } (I# i#) v =
     primitive_ (gWriteByteArray# dt# arr# (o# +# i#) v)
+    where !(I# dt#) = fromEnum mvDataType
 
   {-# INLINE basicUnsafeCopy #-}
   basicUnsafeCopy dVec@MVector{mvDataType=dDt, mvOff=i, mvLen=n, mvData=dst}
@@ -139,7 +141,7 @@ instance GDALType a => M.MVector MVector a where
     | sDt == dDt = copyMutableByteArray dst (i*sz) src (j*sz) (n*sz)
     | otherwise  = loop 0
     where
-      sz = sizeOfDataType (toEnum dDt)
+      sz = sizeOfDataType dDt
       loop !ix
         | ix < mvLen dVec = do
             M.basicUnsafeRead sVec ix >>= M.basicUnsafeWrite dVec ix
@@ -152,14 +154,14 @@ instance GDALType a => M.MVector MVector a where
     | sDt == dDt = moveByteArray dst (i*sz) src (j*sz) (n*sz)
     | otherwise  = M.basicUnsafeCopy dVec sVec
     where
-      sz = sizeOfDataType (toEnum dDt)
+      sz = sizeOfDataType dDt
 
 
 
 data Vector a =
   Vector { vLen      :: {-# UNPACK #-} !Int
          , vOff      :: {-# UNPACK #-} !Int
-         , vDataType :: {-# UNPACK #-} !Int
+         , vDataType :: {-# UNPACK #-} !DataType
          , vData     :: {-# UNPACK #-} !ByteArray
          }
   deriving ( Typeable )
@@ -196,9 +198,10 @@ instance GDALType a => G.Vector Vector a where
   {-# INLINE basicUnsafeIndexM #-}
   basicUnsafeIndexM Vector{ vData     = ByteArray arr#
                           , vOff      = I# o#
-                          , vDataType = I# dt#
+                          , vDataType
                           } (I# i#) =
     return $! gIndexByteArray# dt# arr# (o# +# i#)
+    where !(I# dt#) = fromEnum vDataType
 
   {-# INLINE basicUnsafeCopy #-}
   basicUnsafeCopy dVec@MVector{mvDataType=dDt, mvOff=i, mvLen=n, mvData=dst}
@@ -206,7 +209,7 @@ instance GDALType a => G.Vector Vector a where
     | sDt == dDt = copyByteArray dst (i*sz) src (j*sz) (n*sz)
     | otherwise  = loop 0
     where
-      sz = sizeOfDataType (toEnum dDt)
+      sz = sizeOfDataType dDt
       loop !ix
         | ix < mvLen dVec = do
             G.basicUnsafeIndexM sVec ix >>= M.basicUnsafeWrite dVec ix
@@ -223,27 +226,27 @@ instance NFData (Vector a) where
 
 unsafeAsNative :: Vector a -> (DataType -> Ptr () -> IO b) -> IO b
 unsafeAsNative Vector{vData, vDataType, vOff} f = do
-  r <- f (toEnum vDataType) (Ptr addr)
+  r <- f vDataType (Ptr addr)
   touch vData
   return r
   where !(Addr addr) = byteArrayContents vData `plusAddr` (vOff*size)
-        size = sizeOfDataType (toEnum vDataType)
+        size = sizeOfDataType vDataType
 {-# INLINE unsafeAsNative #-}
 
 unsafeAsNativeM
   :: IOVector a -> (DataType -> Ptr () -> IO b) -> IO b
 unsafeAsNativeM MVector{mvData, mvOff, mvDataType} f = do
-  r <- f (toEnum mvDataType) (Ptr addr)
+  r <- f mvDataType (Ptr addr)
   touch mvData
   return r
   where !(Addr addr) = mutableByteArrayContents mvData `plusAddr` (mvOff*size)
-        size = sizeOfDataType (toEnum mvDataType)
+        size = sizeOfDataType mvDataType
 {-# INLINE unsafeAsNativeM #-}
 
 unsafeAsDataType
   :: GDALType a => DataType -> Vector a -> (Ptr () -> IO b) -> IO b
 unsafeAsDataType dt v f
-  | fromEnum dt == vDataType v = unsafeAsNative v (const f)
+  | dt == vDataType v = unsafeAsNative v (const f)
   | otherwise = do
       copy <- newMVector dt (vLen v)
       G.basicUnsafeCopy copy v

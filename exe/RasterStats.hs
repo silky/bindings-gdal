@@ -3,29 +3,30 @@
 {-# LANGUAGE RecordWildCards #-}
 module Main (main) where
 import System.Environment (getArgs)
-import Data.Int (Int64, Int16)
 import Control.Monad
 
-import qualified GDAL.Band.Masked.Translated as B
-import GHC.Exts (inline)
+import qualified GDAL.Band.Masked.Translated2 as B
 import GDAL
 
-type SummaryType = Int
-maxSumBound = maxBound -- 1/0
-minSumBound = minBound -- (-1/0)
-convert :: Int16 -> SummaryType
+type SummaryType = Double
+minSumBound, maxSumBound :: SummaryType
+maxSumBound = 1/0
+minSumBound = (-1/0)
+convert :: Double -> SummaryType
 convert2 :: SummaryType -> Double
-convert = fromIntegral
-convert2 = fromIntegral
+convert = id
+convert2 = id
 
 main :: IO ()
 main = withGDAL $ do
   [fname] <- getArgs
-  summary <- execGDAL $ do
+  (avg,stddev,aMin,aMax) <- execGDAL $ do
     b <- openReadOnly fname >>= B.getBand 1
-    when (not (B.isNative b)) $ error "caca"
     computeStatistics convert convert2 b
-  print summary
+  putStrLn ("average: " ++ show avg)
+  putStrLn ("stddev: " ++ show stddev)
+  putStrLn ("min: " ++ show aMin)
+  putStrLn ("max: " ++ show aMax)
 
 data Acc = Acc
   { accS   :: {-# UNPACK #-} !SummaryType
@@ -37,8 +38,14 @@ data Acc = Acc
 
 type Summary = (Double, Double, SummaryType, SummaryType)
 
+computeStatistics
+  :: GDALType a
+  => (a -> SummaryType)
+  -> (SummaryType -> Double)
+  -> B.Band s (Value a) t
+  -> GDAL s Summary
 computeStatistics f f2
-  = fmap sumarize . inline B.foldl' folder (Acc 0 0 maxSumBound minSumBound 0)
+  = fmap sumarize . B.foldl' folder (Acc 0 0 maxSumBound minSumBound 0)
   where
     folder acc NoData = acc
     folder Acc{..} (Value v')
@@ -48,3 +55,4 @@ computeStatistics f f2
       where
         avg    = f2 accS  / fromIntegral accCnt
         stddev = sqrt (f2 accSq / fromIntegral accCnt - avg*avg)
+{-# INLINE computeStatistics #-}

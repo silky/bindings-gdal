@@ -22,7 +22,7 @@ module GDAL.Internal.Warper (
 
 import GDAL.Internal.Types
 import GDAL.Internal.GDAL.Types
-import GDAL.Internal.DataType (DataType(GDT_Unknown))
+import GDAL.Internal.DataType (DataType, gdtUnknown)
 import GDAL.Band.Generic (bandCount)
 import GDAL.Band.Generic.Internal (
     setBandNodataValueAsDouble
@@ -99,7 +99,7 @@ instance Default (WarpOptions s) where
           woResampleAlg      = NearestNeighbour
         , woWarpOptions      = []
         , woMemoryLimit      = 0
-        , woWorkingDataType  = GDT_Unknown
+        , woWorkingDataType  = gdtUnknown
         , woBands            = []
         , woTransfomer       = def
         , woCutline          = Nothing
