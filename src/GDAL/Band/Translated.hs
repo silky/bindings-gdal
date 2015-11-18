@@ -42,7 +42,7 @@ module GDAL.Band.Translated (
 ) where
 
 import qualified GDAL.Internal.Vector.Translated as DT
-import GDAL.Internal.DataType (GDALType(..), DataType)
+import GDAL.Internal.DataType (GDALType, DataType)
 
 import GDAL.Internal.Types
 import GDAL.Internal.CPLError (throwBindingException)

@@ -23,7 +23,11 @@ module GDAL.Internal.Vector.Translated (
 
 import GDAL.Internal.Types.Pair (Pair(..))
 import GDAL.Internal.DataType (
-    GDALType(..)
+    GDALType( gReadByteArray#
+            , gWriteByteArray#
+            , gIndexByteArray#
+            , dataType
+            )
   , DataType(..)
   , sizeOfDataType
   )

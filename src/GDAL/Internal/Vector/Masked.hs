@@ -25,6 +25,7 @@ module GDAL.Internal.Vector.Masked (
   , newWithNoDataM
   , newAllValid
   , newAllValidM
+  , newAllValidWithMaskM
   , toBaseVector
   , toBaseVectorWithNoData
   , toBaseVectorWithMask
@@ -166,9 +167,19 @@ newAllValidM
 newAllValidM values = MVector (AllValid, values)
 {-# INLINE newAllValidM #-}
 
+newAllValidWithMaskM
+  :: (PrimMonad m, Nullable a, M.MVector v (Elem a))
+  => v (PrimState m) (Elem a)
+  -> m (MVector v (PrimState m) a)
+newAllValidWithMaskM values = do
+  mask <- M.replicate (M.length values) maskValid
+  return (MVector (Mask mask, values))
+{-# INLINE newAllValidWithMaskM #-}
+
 newWithNoDataM
   :: Nullable a => Elem a -> v s (Elem a) -> MVector v s a
 newWithNoDataM a values = MVector (UseNoData a, values)
+
 {-# INLINE newWithNoDataM #-}
 
 

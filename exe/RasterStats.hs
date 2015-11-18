@@ -1,12 +1,13 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
 module Main (main) where
 import System.Environment (getArgs)
 import Data.Int (Int64, Int16)
 
 import qualified GDAL.Band.Masked.Translated as B
-import GDAL.Internal.DataType ()
+import GDAL.Internal.DataType (Vector)
 import GHC.Exts (inline)
 import GDAL
 
@@ -36,6 +37,11 @@ data Acc = Acc
 
 type Summary = (Double, Double, SummaryType, SummaryType)
 
+computeStatistics :: B.MaskedTranslated a =>
+                           (a -> SummaryType)
+                           -> (SummaryType -> Double)
+                           -> B.Band s (Value a) t
+                           -> GDAL s (Double, Double, SummaryType, SummaryType)
 computeStatistics f f2
   = fmap sumarize . inline B.foldl' folder (Acc 0 0 maxSumBound minSumBound 0)
   where

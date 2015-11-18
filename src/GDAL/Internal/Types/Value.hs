@@ -15,7 +15,7 @@ module GDAL.Internal.Types.Value (
   , fromValue
 ) where
 
-import GDAL.Internal.Vector.Masked (Nullable (..), Masked, Vector, MVector)
+import GDAL.Internal.Vector.Masked (Nullable (..), Masked)
 
 import Control.Applicative (Applicative(..), (<$>))
 import Control.DeepSeq (NFData(rnf))
@@ -133,11 +133,12 @@ instance Eq a => Nullable (Value a) where
   isNull = isNoData
   {-# INLINE isNull #-}
 
+{-
 
 newtype instance U.MVector s (Value a) =
-  UMV_Masked (MVector U.MVector s (Value a))
+  UMV_Masked (MV.MVector U.MVector s (Value a))
 newtype instance U.Vector    (Value a) =
-  UV_Masked  (Vector  U.Vector    (Value a))
+  UV_Masked  (MV.Vector  U.Vector    (Value a))
 instance (Eq a, U.Unbox a) => U.Unbox (Value a)
 
 instance (U.Unbox a, Eq a) => M.MVector U.MVector (Value a) where
@@ -196,3 +197,4 @@ instance (U.Unbox a, Eq a) => G.Vector (U.Vector) (Value a) where
 
   {-# INLINE elemseq #-}
   elemseq _ = seq
+-}

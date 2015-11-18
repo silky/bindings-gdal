@@ -36,6 +36,7 @@ library
                    , GDAL.Band.Masked.Native
                    , GDAL.Band.Translated
                    , GDAL.Band.Masked.Translated
+                   , GDAL.Band.Masked.Translated2
                    , GDAL.Algorithms
                    , GDAL.Warper
 

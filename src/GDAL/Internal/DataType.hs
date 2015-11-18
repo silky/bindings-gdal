@@ -35,7 +35,7 @@ module GDAL.Internal.DataType (
 ) where
 
 import GDAL.Internal.Types.Pair
-
+import GDAL.Internal.Types.Value
 
 import Control.Monad.Primitive
 import Control.Monad.ST (runST)
@@ -46,6 +46,8 @@ import Data.Primitive.MachDeps
 import Data.Primitive.ByteArray
 import Data.Word (Word8, Word16, Word32)
 
+import qualified Data.Vector.Unboxed as U
+import qualified Data.Vector.Generic as G
 
 import Foreign.Ptr (Ptr)
 
@@ -57,7 +59,9 @@ type DataType# = Int#
 ------------------------------------------------------------------------------
 -- GDALType
 ------------------------------------------------------------------------------
-class GDALType a where
+class U.Unbox (Value a) => GDALType a where
+  type Vector a :: * -> *
+
   dataType        :: a -> DataType
 
   gReadByteArray# :: DataType# -> MutableByteArray# s -> Int# -> State# s
@@ -66,13 +70,10 @@ class GDALType a where
                    -> State# s
   gIndexByteArray# :: DataType# -> ByteArray# -> Int# -> a
 
-{-
-  newMVector      :: PrimMonad m
-                  => DataType -> Int -> m (MVector (PrimState m) a)
-  unsafeAsNative  :: Vector a -> (DataType -> Ptr () -> IO b) -> IO b
-  unsafeAsDataType  :: DataType -> Vector a -> (Ptr () -> IO b) -> IO b
-  unsafeAsNativeM :: IOVector a -> (DataType -> Ptr () -> IO b) -> IO b
--}
+  toUMVector   :: G.Mutable (Vector a)  s (Value a) -> U.MVector s (Value a)
+  fromUMVector :: U.MVector s (Value a)  -> G.Mutable (Vector a) s (Value a)
+  toUVector    :: (Vector a)     (Value a) -> U.Vector  (Value a)
+  fromUVector  :: U.Vector    (Value a)  -> Vector a      (Value a)
 
 
 convertGType :: forall a b. (GDALType a, GDALType b) => a -> b
