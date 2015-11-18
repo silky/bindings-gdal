@@ -42,10 +42,8 @@ module GDAL.Internal.Algorithms (
 import GDAL.Internal.Util (fromEnumC)
 import GDAL.Internal.Types
 import GDAL.Internal.Types.Value
-import GDAL.Internal.DataType (GDALType, convertGType)
+import GDAL.Internal.DataType
 import GDAL.Band.Generic
-import qualified GDAL.Internal.Vector.Translated as DT
-import qualified GDAL.Internal.Vector.Masked as MV
 {#import GDAL.Internal.CPLString#}
 {#import GDAL.Internal.OSR #}
 {#import GDAL.Internal.CPLProgress#}
@@ -73,6 +71,7 @@ import Data.Typeable (Typeable)
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as GM
 import qualified Data.Vector.Storable as St
+import qualified Data.Vector.Unboxed as U
 
 import Foreign.C.Types (CDouble(..), CInt(..), CUInt(..), CChar(..))
 import Foreign.Marshal.Utils (fromBool)
@@ -293,7 +292,7 @@ rasterizeLayersBuf
   -> SpatialReference
   -> Size
   -> Geotransform
-  -> OGR s l (MV.Vector DT.Vector (Value a))
+  -> OGR s l (U.Vector (Value a))
 rasterizeLayersBuf getLayers mTransformer nodataValue
                    burnValue options progressFun
                    srs size geotransform =
@@ -305,14 +304,14 @@ rasterizeLayersBuf getLayers mTransformer nodataValue
   withOptionList options $ \opts ->
   withTransformerAndArg mTransformer (Just geotransform) $ \trans tArg ->
   with geotransform $ \gt -> do
-    vec <- GM.replicate (sizeLen size) nodataValue :: IO (DT.IOVector a)
-    DT.unsafeAsNativeM vec $ \dt vecPtr ->
+    vec <- GM.replicate (sizeLen size) nodataValue
+    unsafeAsNativeM vec $ \dt vecPtr ->
       checkCPLError "RasterizeLayersBuf" $
       {#call GDALRasterizeLayersBuf as ^#}
         (castPtr vecPtr) nx ny (fromEnumC dt) 0 0 (fromIntegral len)
         lPtrPtr srsPtr (castPtr gt) trans
         tArg bValue opts pFun nullPtr
-    liftM (MV.newWithNoData nodataValue) (G.unsafeFreeze vec)
+    liftM (newWithNoData nodataValue) (G.unsafeFreeze vec)
   where
     bValue    = realToFrac (convertGType burnValue :: Double)
     XY nx ny  = fmap fromIntegral size
@@ -338,7 +337,7 @@ createGridIO
   -> St.Vector GridPoint
   -> EnvelopeReal
   -> Size
-  -> IO (MV.Vector DT.Vector (Value a))
+  -> IO (U.Vector (Value a))
 createGridIO options noDataVal progressFun points envelope size =
   withProgressFun "createGridIO" progressFun $ \pFun ->
   withErrorHandler $
@@ -352,7 +351,7 @@ createGridIO options noDataVal progressFun points envelope size =
       St.unsafeWith xs $ \pXs ->
       St.unsafeWith ys $ \pYs ->
       St.unsafeWith zs $ \pZs ->
-      DT.unsafeAsNativeM out $ \dt pOut ->
+      unsafeAsNativeM out $ \dt pOut ->
       {#call GDALGridCreate as ^#}
         (fromEnumC (gridAlgorithm options))
         (castPtr opts)
@@ -370,7 +369,7 @@ createGridIO options noDataVal progressFun points envelope size =
         pOut
         pFun
         nullPtr
-    liftM (MV.newWithNoData noDataVal) (G.unsafeFreeze out)
+    liftM (newWithNoData noDataVal) (G.unsafeFreeze out)
   where
     cNoData = realToFrac (convertGType noDataVal :: Double)
     XY nx ny                       = fmap fromIntegral size

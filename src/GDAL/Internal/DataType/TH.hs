@@ -13,12 +13,10 @@
 
 module GDAL.Internal.DataType.TH (deriveGDALType) where
 
-import GDAL.Internal.DataType hiding (Vector)
+import GDAL.Internal.DataType
 import qualified GDAL.Internal.DataType as DT
 import GDAL.Internal.Types.Pair
 import GDAL.Internal.Types.Value
-import qualified GDAL.Internal.Vector.Masked  as MV
-import qualified GDAL.Internal.Vector.Translated  as T
 
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative
@@ -29,10 +27,6 @@ import Data.List
 import Data.Function
 import Language.Haskell.TH
 
-import qualified Data.Vector.Generic           as G
-import qualified Data.Vector.Generic.Mutable   as M
-import qualified Data.Vector.Unboxed as U
-
 import Data.Int (Int8, Int16, Int32)
 import Data.Primitive.Types
 import Data.Word (Word8, Word16, Word32)
@@ -41,9 +35,6 @@ import GHC.Prim
 import GHC.Base
 import GHC.Word
 import GHC.Int
-
-type MVector = MV.MVector T.MVector
-type Vector  = MV.Vector T.Vector
 
 ------------------------------------------------------------------------------
 -- instance deriver
@@ -70,65 +61,6 @@ deriveGDALType name typeQ gtypeQ toInt fromInt toReal fromReal toInt2 fromInt2
         (ConT _ `AppT` ConT n) -> nameBase n
         (ConT n)               -> nameBase n
         _                      -> name
-
-  let mvName = mkName ("MV_" ++ name)
-      vName = mkName ("V_" ++ name)
-      mvCon = ConE mvName
-      vCon  = ConE vName
-      vtype = ConT ''Value `AppT` type_
-
-  i <- newPatExp "idx"
-  n <- newPatExp "len"
-  mv  <- first (ConP mvName . (:[])) <$> newPatExp "mvec"
-  mv' <- first (ConP mvName . (:[])) <$> newPatExp "mvec'"
-  v   <- first (ConP vName  . (:[])) <$> newPatExp "vec"
-  a <- newPatExp "val"
-
-  let mvClauses = [
-          wrapperClause 'M.basicLength           [mv]        id
-        , wrapperClause 'M.basicUnsafeSlice      [i, n, mv]  (AppE mvCon)
-        , wrapperClause 'M.basicOverlaps         [mv, mv']   id
-        , wrapperClause 'M.basicUnsafeNew        [i]         (liftE mvCon)
-#if MIN_VERSION_vector(0,11,0)
-        , wrapperClause 'M.basicInitialize       [mv]        id
-#endif
-        , wrapperClause 'M.basicUnsafeReplicate  [n, a]      (liftE mvCon)
-        , wrapperClause 'M.basicUnsafeRead       [mv, i]     id
-        , wrapperClause 'M.basicUnsafeWrite      [mv, i, a]  id
-        , wrapperClause 'M.basicClear            [mv]        id
-        , wrapperClause 'M.basicSet              [mv, a]     id
-        , wrapperClause 'M.basicUnsafeCopy       [mv, mv']   id
-        , wrapperClause 'M.basicUnsafeMove       [mv, mv']   id
-        , wrapperClause 'M.basicUnsafeGrow       [mv, n]     (liftE mvCon)
-        ]
-
-  let vClauses = [
-          wrapperClause 'G.basicUnsafeFreeze     [mv]        (liftE vCon)
-        , wrapperClause 'G.basicUnsafeThaw       [v]         (liftE mvCon)
-        , wrapperClause 'G.basicLength           [v]         id
-        , wrapperClause 'G.basicUnsafeSlice      [i, n, v]   (AppE vCon)
-        , wrapperClause 'G.basicUnsafeIndexM     [v, i]      id
-        , wrapperClause 'G.basicUnsafeCopy       [mv, v]     id
-        , wrapperClause 'G.elemseq               [v, a]      id
-        ]
-
-
-  let vType = ConT ''G.Vector `AppT` ConT ''U.Vector `AppT` vtype
-      instanceVector = InstanceD [] vType (mkMultiClauseFuns vClauses)
-
-      mvType = ConT ''M.MVector `AppT` ConT ''U.MVector `AppT` vtype
-      instanceMVector = InstanceD [] mvType (mkMultiClauseFuns mvClauses)
-
-  s <- VarT <$> newName "s"
-  let dataMVector =
-        NewtypeInstD [] ''U.MVector [s, vtype]
-        (NormalC mvName
-          [(NotStrict, ConT ''MVector `AppT` s `AppT` vtype)]) []
-      dataVector =
-        NewtypeInstD [] ''U.Vector [vtype]
-        (NormalC vName
-          [(NotStrict, ConT ''Vector `AppT` vtype)]) []
-
 
   let pTypes' = [ (False, False, ''Word8  , 'W8#  , GDT_Byte    )
                 , (False, False, ''Word16 , 'W16# , GDT_UInt16  )
@@ -202,46 +134,14 @@ deriveGDALType name typeQ gtypeQ toInt fromInt toReal fromReal toInt2 fromInt2
 
   let gInstClauses = concat arrayClauses ++ [
           ('dataType, Clause  [WildP] (NormalB (gtype)) [])
-        , ('toUMVector,
-            Clause [VarP tv] (NormalB (ConE mvName `AppE` VarE tv)) [])
-        , ('fromUMVector,
-            Clause [ConP mvName [VarP tv]] (NormalB (VarE tv)) [])
-        , ('toUVector,
-            Clause [VarP tv] (NormalB (ConE vName `AppE` VarE tv)) [])
-        , ('fromUVector,
-            Clause [ConP vName [VarP tv]] (NormalB (VarE tv)) [])
-        {-
-        , ('newMVector,
-            Clause
-              [VarP dt, VarP j]
-              (NormalB (ConE mvName `liftE`
-                          (newMVector' `AppE` VarE dt `AppE` VarE j)
-                       )) [])
-        , ('unsafeAsNative,
-            Clause
-              [ConP vName [VarP tv]]
-              (NormalB (VarE 'T.unsafeAsNative `AppE` VarE tv)) [])
-        , ('unsafeAsNativeM,
-            Clause
-              [ConP mvName [VarP tv]]
-              (NormalB (VarE 'T.unsafeAsNativeM `AppE` VarE tv)) [])
-        , ('unsafeAsDataType,
-            Clause
-              [VarP dt, ConP vName [VarP tv]]
-              (NormalB (VarE 'T.unsafeAsDataType `AppE` VarE dt `AppE` VarE tv)) [])
-        -}
         ]
 
   let instanceGDALType =
         InstanceD []
          (ConT ''GDALType `AppT` type_)
-         (vecType:mkMultiClauseFuns gInstClauses)
-      vecType = TySynInstD ''DT.Vector (TySynEqn [type_] (ConT ''Vector))
+         (mkMultiClauseFuns gInstClauses)
   return
     [ instanceGDALType
-    , InstanceD [] (ConT ''U.Unbox `AppT` vtype) []
-    , dataMVector, instanceMVector
-    , dataVector, instanceVector
     ]
 
 

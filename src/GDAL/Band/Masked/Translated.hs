@@ -16,7 +16,7 @@ module GDAL.Band.Masked.Translated (
   , Vector
   , IOVector
   , STVector
-  , MaskedTranslated
+  , GDALType
   , bandCount
   , bandDataType
   , bandBlockSize
@@ -47,24 +47,16 @@ module GDAL.Band.Masked.Translated (
 import GDAL.Internal.Types
 import GDAL.Internal.GDAL.Types (
     Dataset
+  , GDALRasterException(BandDoesNotAllowNoData, InvalidBlockSize)
+  , MaskType(..)
   , RWDataset
   , OptionList
   , ProgressFun
-  , MaskType
+  , MaskType (..)
   )
 import GDAL.Internal.Types.Value
-import GDAL.Internal.DataType (
-    GDALType ( toUVector )
-  , DataType (GDT_Byte)
-  , convertGType
-  )
-import qualified GDAL.Internal.Vector.Translated as T
-import qualified GDAL.Internal.Vector.Masked as VM
-import qualified GDAL.Internal.DataType as DT
-import GDAL.Internal.GDAL.Types (
-    GDALRasterException(BandDoesNotAllowNoData, InvalidBlockSize)
-  , MaskType(..)
-  )
+import GDAL.Internal.DataType
+import GDAL.Internal.DataType.Instances ()
 import GDAL.Internal.CPLError (throwBindingException)
 import qualified GDAL.Band.Generic as BG
 import GDAL.Band.Generic.Internal
@@ -148,21 +140,14 @@ instance MajorObject (Band s a) t where
   majorObject (Band (BandH p)) = MajorObjectH (castPtr p)
 
 
-type MaskedTranslated a =
-  ( Eq a
-  , GDALType a
-  --, BG.Band Band s (Value a) t
-  , DT.Vector a ~ VM.Vector T.Vector)
-
-
-instance (Eq a, MaskedTranslated a) => Eq (Vector (Value a)) where
+instance (Eq a, GDALType a) => Eq (Vector (Value a)) where
   {-# INLINE (==) #-}
   xs == ys = Bundle.eq (G.stream xs) (G.stream ys)
 
   {-# INLINE (/=) #-}
   xs /= ys = not (Bundle.eq (G.stream xs) (G.stream ys))
 
-instance (Ord a, MaskedTranslated a) => Ord (Vector (Value a)) where
+instance (Ord a, GDALType a) => Ord (Vector (Value a)) where
   {-# INLINE compare #-}
   compare xs ys = Bundle.cmp (G.stream xs) (G.stream ys)
 
@@ -178,7 +163,7 @@ instance (Ord a, MaskedTranslated a) => Ord (Vector (Value a)) where
   {-# INLINE (>=) #-}
   xs >= ys = Bundle.cmp (G.stream xs) (G.stream ys) /= LT
 
-instance MaskedTranslated a => Monoid (Vector (Value a)) where
+instance GDALType a => Monoid (Vector (Value a)) where
   {-# INLINE mempty #-}
   mempty = G.empty
 
@@ -188,23 +173,22 @@ instance MaskedTranslated a => Monoid (Vector (Value a)) where
   {-# INLINE mconcat #-}
   mconcat = G.concat
 
-instance (Show a, MaskedTranslated a) => Show (Vector (Value a)) where
+instance (Show a, GDALType a) => Show (Vector (Value a)) where
   showsPrec = G.showsPrec
 
-instance (Read a, MaskedTranslated a) => Read (Vector (Value a)) where
+instance (Read a, GDALType a) => Read (Vector (Value a)) where
   readPrec = G.readPrec
   readListPrec = readListPrecDefault
 
 
-instance MaskedTranslated a => IsList (Vector (Value a)) where
+instance GDALType a => IsList (Vector (Value a)) where
   type Item (Vector (Value a)) = Value a
   fromList = G.fromList
   fromListN = G.fromListN
   toList = G.toList
 
 
-instance (Eq a, GDALType a, DT.Vector a ~ VM.Vector T.Vector)
-  => BG.Band Band s (Value a) t where
+instance GDALType a => BG.Band Band s (Value a) t where
   bandH (Band h) = h
   {-# INLINE bandH #-}
 
@@ -215,16 +199,16 @@ instance (Eq a, GDALType a, DT.Vector a ~ VM.Vector T.Vector)
   readWindow b win sz = do
     vec <- liftIO $ do
       v <- M.new (sizeLen sz)
-      T.unsafeAsNativeM v $ \dt p -> do
+      unsafeAsNativeM v $ \dt p -> do
         adviseRead [] dt (BG.bandH b) win sz
         rasterIO dt GF_Read (BG.bandH b) win sz 0 p
       G.unsafeFreeze v
     case BG.bandMaskType b of
       MaskNoData -> do
         nd <- noDataOrFail b
-        return (Vector (toUVector (VM.newWithNoData nd vec)))
+        return (Vector (newWithNoData nd vec))
       MaskAllValid -> do
-        return (Vector (toUVector (VM.newAllValid vec)))
+        return (Vector (newAllValid vec))
 
       _ -> do
         liftIO $ do
@@ -233,71 +217,71 @@ instance (Eq a, GDALType a, DT.Vector a ~ VM.Vector T.Vector)
           adviseRead [] GDT_Byte maskBand win sz
           Stm.unsafeWith mv $ rasterIO GDT_Byte GF_Read maskBand win sz 0
           v <- G.unsafeFreeze mv
-          return (Vector (toUVector (VM.newWithMask v vec)))
+          return (Vector (newWithMask v vec))
   {-# INLINE readWindow #-}
 
-  writeWindow b win sz (Vector (DT.fromUVector -> v)) =
+  writeWindow b win sz (Vector v) =
     case BG.bandMaskType b of
       MaskNoData -> do
         nd <- noDataOrFail b
-        writeT (VM.toBaseVectorWithNoData nd v)
+        writeT (toBaseVectorWithNoData nd v)
       MaskAllValid ->
         maybe (throwBindingException BandDoesNotAllowNoData)
-              (writeT) (VM.toBaseVector v)
+              (writeT) (toBaseVector v)
 
-      _ -> do let (m, v') = VM.toBaseVectorWithMask v
+      _ -> do let (m, v') = toBaseVectorWithMask v
               writeT v'
               liftIO $ do
                 mb <- bandMaskH (BG.bandH b)
                 St.unsafeWith m $ rasterIO GDT_Byte GF_Write mb win sz 0
     where
-      writeT vt = liftIO $ T.unsafeAsNative vt $ \dt ->
+      writeT vt = liftIO $ unsafeAsNative vt $ \dt ->
                     rasterIO dt GF_Write (BG.bandH b) win sz 0
   {-# INLINE writeWindow #-}
 
-  writeBlock b ix (Vector (DT.fromUVector -> v))
+  writeBlock b ix (Vector v)
     | BG.bandBlockLen b /= G.length v
     = throwBindingException (InvalidBlockSize (G.length v))
     | otherwise = case BG.bandMaskType b of
         MaskNoData -> do
           noData <- noDataOrFail b
-          writeT (VM.toBaseVectorWithNoData noData v)
+          writeT (toBaseVectorWithNoData noData v)
 
         MaskAllValid ->
           maybe (throwBindingException BandDoesNotAllowNoData)
-                writeT (VM.toBaseVector v)
-        _ -> do let (m, v') = VM.toBaseVectorWithMask v
+                writeT (toBaseVector v)
+        _ -> do let (m, v') = toBaseVectorWithMask v
                 writeT v'
                 liftIO $ do
                   mb <- bandMaskH (BG.bandH b)
                   St.unsafeWith m $ maskIO GF_Write mb b ix
-    where writeT vt = liftIO $ T.unsafeAsDataType (BG.bandDataType b) vt $
+    where writeT vt = liftIO $ unsafeAsDataType (BG.bandDataType b) vt $
                       writeBlockH (BG.bandH b) ix
   {-# INLINE writeBlock #-}
 
   blockLoader b@(Band bPtr) = do
-    vt <- liftIO $ T.newMVector (BG.bandDataType b) (BG.bandBlockLen b)
+    vt <- liftIO $ newMVector (BG.bandDataType b) (BG.bandBlockLen b)
     case BG.bandMaskType b of
       MaskNoData -> do
         noData <- noDataOrFail b
-        let uvec = DT.toUMVector (VM.newWithNoDataM noData vt)
+        let uvec = newWithNoDataM noData vt
         return (MVector uvec, loadVt vt)
       MaskAllValid -> do
-        let uvec = DT.toUMVector (VM.newAllValidM vt)
+        let uvec = newAllValidM vt
         return (MVector uvec, loadVt vt)
       _ -> do
         maskBuf <- liftIO $ M.replicate (BG.bandBlockLen b) 0
         mbh <- liftIO $ bandMaskH bPtr
-        let uvec = DT.toUMVector (VM.newWithMaskM maskBuf vt)
+        let uvec = newWithMaskM maskBuf vt
         return ( MVector uvec, \ix -> do
                   loadVt vt ix
                   liftIO $ Stm.unsafeWith maskBuf $ maskIO GF_Read mbh b ix)
-    where loadVt v ix = liftIO $ T.unsafeAsNativeM v $
+    where loadVt v ix = liftIO $ unsafeAsNativeM v $
                                 const (inline readBlockH bPtr ix)
   {-# INLINE blockLoader #-}
 
 maskIO
-  :: (MaskedTranslated a, BG.Band Band s (Value a) t)
+  :: (GDALType a, BG.Band Band s (Value a) t)
   => RWFlag -> BandH -> Band s (Value a) t -> BlockIx -> Ptr c -> IO ()
 maskIO mode mbh b ix ptr = rasterIO GDT_Byte mode mbh win sz spacing ptr
   where
@@ -312,7 +296,7 @@ maskIO mode mbh b ix ptr = rasterIO GDT_Byte mode mbh win sz spacing ptr
 
 
 noDataOrFail
-  :: (MaskedTranslated a, BG.Band Band s (Value a) t)
+  :: (GDALType a, BG.Band Band s (Value a) t)
   => Band s (Value a) t -> GDAL s a
 noDataOrFail = liftM (maybe err id) . bandNodataValue
   where
@@ -330,48 +314,48 @@ bandCount = BG.bandCount
 {-# INLINE bandCount #-}
 
 
-getBand :: MaskedTranslated a => Int -> Dataset s t -> GDAL s (Band s (Value a) t)
+getBand :: GDALType a => Int -> Dataset s t -> GDAL s (Band s (Value a) t)
 getBand = BG.getBand
 {-# INLINE getBand #-}
 
 addBand
-  :: MaskedTranslated a
+  :: GDALType a
   => RWDataset s -> DataType -> OptionList -> GDAL s (Band s (Value a) ReadWrite)
 addBand = BG.addBand
 {-# INLINE addBand #-}
 
 fillBand
-  :: MaskedTranslated a
+  :: GDALType a
   => Value a -> Band s (Value a) ReadWrite -> GDAL s ()
 fillBand = BG.fillBand
 {-# INLINE fillBand #-}
 
-bandDataType :: MaskedTranslated a => Band s (Value a) t -> DataType
+bandDataType :: GDALType a => Band s (Value a) t -> DataType
 bandDataType = BG.bandDataType
 {-# INLINE bandDataType #-}
 
-bandBlockSize :: MaskedTranslated a => Band s (Value a) t -> Size
+bandBlockSize :: GDALType a => Band s (Value a) t -> Size
 bandBlockSize = BG.bandBlockSize
 {-# INLINE bandBlockSize #-}
 
-bandBlockLen :: MaskedTranslated a => Band s (Value a) t -> Int
+bandBlockLen :: GDALType a => Band s (Value a) t -> Int
 bandBlockLen = BG.bandBlockLen
 {-# INLINE bandBlockLen #-}
 
 
-bandSize :: MaskedTranslated a => Band s (Value a) t -> Size
+bandSize :: GDALType a => Band s (Value a) t -> Size
 bandSize = BG.bandSize
 {-# INLINE bandSize #-}
 
-allBand :: MaskedTranslated a => Band s (Value a) t -> Envelope Int
+allBand :: GDALType a => Band s (Value a) t -> Envelope Int
 allBand = BG.allBand
 {-# INLINE allBand #-}
 
-bandBlockCount :: MaskedTranslated a => Band s (Value a) t -> XY Int
+bandBlockCount :: GDALType a => Band s (Value a) t -> XY Int
 bandBlockCount = BG.bandBlockCount
 {-# INLINE bandBlockCount #-}
 
-bandHasOverviews :: MaskedTranslated a => Band s (Value a) t -> GDAL s Bool
+bandHasOverviews :: GDALType a => Band s (Value a) t -> GDAL s Bool
 bandHasOverviews = BG.bandHasOverviews
 {-# INLINE bandHasOverviews #-}
 
@@ -379,20 +363,20 @@ bandTypedAs :: BG.Band b s a t => b s a t -> a -> b s a t
 bandTypedAs = BG.bandTypedAs
 {-# INLINE bandTypedAs #-}
 
-bandNodataValue :: MaskedTranslated a => Band s (Value a) t -> GDAL s (Maybe a)
+bandNodataValue :: GDALType a => Band s (Value a) t -> GDAL s (Maybe a)
 bandNodataValue (Band b) =
   liftM (fmap convertGType) (liftIO (bandNodataValueAsDouble b))
 {-# INLINE bandNodataValue #-}
 
 setBandNodataValue
-  :: MaskedTranslated a
+  :: GDALType a
   => Band s (Value a) ReadWrite -> a -> GDAL s ()
 setBandNodataValue (Band b) =
   liftIO . setBandNodataValueAsDouble b . convertGType
 {-# INLINE setBandNodataValue #-}
 
 createMaskBand
-  :: MaskedTranslated a
+  :: GDALType a
   => Band s (Value a) ReadWrite -> MaskType -> GDAL s ()
 createMaskBand = BG.createMaskBand
 {-# INLINE createMaskBand #-}
@@ -400,7 +384,7 @@ createMaskBand = BG.createMaskBand
 
 
 copyBand
-  :: MaskedTranslated a
+  :: GDALType a
   => Band s (Value a) t
   -> Band s (Value a) ReadWrite
   -> OptionList
@@ -410,7 +394,7 @@ copyBand = BG.copyBand
 
 
 writeWindow
-  :: (MaskedTranslated a, t ~ ReadWrite)
+  :: (GDALType a, t ~ ReadWrite)
   => Band s (Value a) t
   -> Envelope Int
   -> Size
@@ -420,47 +404,47 @@ writeWindow = BG.writeWindow
 {-# INLINE writeWindow #-}
 
 readWindow
-  :: MaskedTranslated a
+  :: GDALType a
   => Band s (Value a) t -> Envelope Int -> Size -> GDAL s (Vector (Value a))
 readWindow  = BG.readWindow
 {-# INLINE readWindow #-}
 
-readBlock :: MaskedTranslated a => Band s (Value a) t -> BlockIx -> GDAL s (Vector (Value a))
+readBlock :: GDALType a => Band s (Value a) t -> BlockIx -> GDAL s (Vector (Value a))
 readBlock = BG.readBlock
 {-# INLINE readBlock #-}
 
 writeBlock
-  :: (MaskedTranslated a, t ~ ReadWrite)
+  :: (GDALType a, t ~ ReadWrite)
   => Band s (Value a) t -> BlockIx  -> Vector (Value a) -> GDAL s ()
 writeBlock = BG.writeBlock
 {-# INLINE writeBlock #-}
 
 
-bandMaskType :: MaskedTranslated a => Band s (Value a) t -> MaskType
+bandMaskType :: GDALType a => Band s (Value a) t -> MaskType
 bandMaskType = BG.bandMaskType
 {-# INLINE bandMaskType #-}
 
 
 foldl'
-  :: MaskedTranslated a
+  :: GDALType a
   => (z -> Value a -> z) -> z -> Band s (Value a) t -> GDAL s z
 foldl' = BG.foldl'
 {-# INLINE foldl' #-}
 
 ifoldl'
-  :: MaskedTranslated a
+  :: GDALType a
   => (z -> XY Int -> Value a -> z) -> z -> Band s (Value a) t -> GDAL s z
 ifoldl' = BG.ifoldl'
 {-# INLINE ifoldl' #-}
 
 foldlM'
-  :: MaskedTranslated a
+  :: GDALType a
   => (z -> Value a -> GDAL s z) -> z -> Band s (Value a) t -> GDAL s z
 foldlM' = BG.foldlM'
 {-# INLINE foldlM' #-}
 
 ifoldlM'
-  :: MaskedTranslated a
+  :: GDALType a
   => (z -> XY Int -> Value a -> GDAL s z) -> z -> Band s (Value a) t -> GDAL s z
 ifoldlM' = BG.ifoldlM'
 {-# INLINE ifoldlM' #-}

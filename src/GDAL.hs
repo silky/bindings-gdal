@@ -106,6 +106,7 @@ import GDAL.Band.Generic
 
 import GDAL.Internal.CPLError
 import GDAL.Internal.DataType
+import GDAL.Internal.DataType.Instances()
 import GDAL.Internal.GDAL.Types
 import GDAL.Internal.CPLString
 import GDAL.Internal.CPLProgress
