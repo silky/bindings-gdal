@@ -53,6 +53,7 @@ import GDAL.Band.Generic.Internal (
     setBandNodataValueAsDouble
   , bandNodataValueAsDouble
   , getBandH
+  , bandDataTypeH
   )
 import GDAL.Internal.Types
 import GDAL.Internal.Util
@@ -167,7 +168,8 @@ fillBand v band =
     vec      = G.replicate (bandBlockLen band) v
 
 bandDataType :: Band b s a t => b s a t -> DataType
-bandDataType = toEnumC . {#call pure unsafe GetRasterDataType as ^#} . bandH
+bandDataType = bandDataTypeH . bandH
+{-# INLINE bandDataType #-}
 
 bandBlockSize :: Band b s a t => b s a t -> Size
 bandBlockSize band = unsafePerformIO $ alloca $ \xPtr -> alloca $ \yPtr -> do

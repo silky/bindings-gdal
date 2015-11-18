@@ -150,6 +150,9 @@ deriveGDALType name typeQ gtypeQ toInt fromInt toReal fromReal toInt2 fromInt2
     ]
 
 
+wrapDoubleConv :: (a -> b) -> a -> b
+wrapDoubleConv = id
+{-# INLINE[0] wrapDoubleConv #-}
 
 -- Create a @Pat@ bound to the given name and an @Exp@ for said binding.
 newPatExp :: String -> Q (Pat, Exp)

@@ -115,7 +115,7 @@ convertGType a = runST $ do
 -- DataType
 ------------------------------------------------------------------------------
 
-
+-- TODO: Usar newtype alrededor de Int
 data DataType
   = GDT_Unknown
   | GDT_Byte

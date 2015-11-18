@@ -28,7 +28,7 @@ import qualified Data.Vector.Generic.Mutable as M
 
 
 data Value a
-  = Value {unValue :: {-# UNPACK #-} !a}
+  = Value {unValue :: !a}
   | NoData
   deriving (Eq, Ord, Show, Read, Typeable)
 
@@ -81,8 +81,8 @@ instance Num a => Num (Value a) where
   {-# INLINE (-) #-}
 
   Value a * Value b = Value (a*b)
-  Value a * NoData  = Value a
-  NoData  * Value a = Value a
+  Value a * NoData  = NoData
+  NoData  * Value a = NoData
   NoData  * NoData  = NoData
   {-# INLINE (*) #-}
 
@@ -100,8 +100,8 @@ instance Num a => Num (Value a) where
 
 instance Fractional a => Fractional (Value a) where
   Value a / Value b = Value (a/b)
-  Value a / NoData  = Value a
-  NoData  / Value a = Value a
+  Value a / NoData  = NoData
+  NoData  / Value a = NoData
   NoData  / NoData  = NoData
   {-# INLINE (/) #-}
 

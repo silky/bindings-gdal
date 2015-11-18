@@ -15,6 +15,7 @@ module GDAL.Band.Generic.Internal (
   , writeBlockH
   , readBlockH
   , bandMaskH
+  , bandDataTypeH
   , getBandH
   , bandNodataValueAsDouble
   , setBandNodataValueAsDouble
@@ -22,7 +23,7 @@ module GDAL.Band.Generic.Internal (
 
 import GDAL.Internal.Types
 import GDAL.Internal.DataType (DataType)
-import GDAL.Internal.Util (fromEnumC)
+import GDAL.Internal.Util (fromEnumC, toEnumC)
 {#import GDAL.Internal.GDAL.Types#}
 {#import GDAL.Internal.CPLString#}
 {#import GDAL.Internal.CPLError#}
@@ -113,6 +114,10 @@ getBandH n ds =
 
 bandMaskH :: BandH -> IO BandH
 bandMaskH = {#call GDALGetMaskBand as ^#}
+
+bandDataTypeH :: BandH -> DataType
+bandDataTypeH = toEnumC . {#call pure unsafe GDALGetRasterDataType as ^#}
+{-# INLINE bandDataTypeH #-}
 
 bandNodataValueAsDouble :: BandH -> IO (Maybe Double)
 bandNodataValueAsDouble b =

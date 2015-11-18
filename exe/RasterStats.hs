@@ -4,24 +4,26 @@
 module Main (main) where
 import System.Environment (getArgs)
 import Data.Int (Int64, Int16)
+import Control.Monad
 
 import qualified GDAL.Band.Masked.Translated as B
 import GHC.Exts (inline)
 import GDAL
 
-type SummaryType = Double
-maxSumBound = 1/0
-minSumBound = (-1/0)
-convert :: Double -> SummaryType
+type SummaryType = Int
+maxSumBound = maxBound -- 1/0
+minSumBound = minBound -- (-1/0)
+convert :: Int16 -> SummaryType
 convert2 :: SummaryType -> Double
-convert = id
-convert2 = id
+convert = fromIntegral
+convert2 = fromIntegral
 
 main :: IO ()
 main = withGDAL $ do
   [fname] <- getArgs
   summary <- execGDAL $ do
     b <- openReadOnly fname >>= B.getBand 1
+    when (not (B.isNative b)) $ error "caca"
     computeStatistics convert convert2 b
   print summary
 

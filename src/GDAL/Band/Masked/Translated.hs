@@ -30,6 +30,7 @@ module GDAL.Band.Masked.Translated (
   , bandNodataValue
   , setBandNodataValue
   , getBand
+  , isNative
   , addBand
   , fillBand
   , createMaskBand
@@ -82,7 +83,7 @@ import GHC.Exts (IsList(..), inline)
 import Text.Read ( Read(..), readListPrecDefault )
 
 
-newtype Band s a (t::AccessMode) = Band BandH
+newtype Band s a (t::AccessMode) = Band (DataType, BandH)
 
 
 newtype instance BG.MVector Band s a = MVector (U.MVector s a)
@@ -137,7 +138,7 @@ instance GDALType a => G.Vector Vector (Value a) where
   elemseq _ = seq
 
 instance MajorObject (Band s a) t where
-  majorObject (Band (BandH p)) = MajorObjectH (castPtr p)
+  majorObject (Band (_, BandH p)) = MajorObjectH (castPtr p)
 
 
 instance (Eq a, GDALType a) => Eq (Vector (Value a)) where
@@ -189,10 +190,10 @@ instance GDALType a => IsList (Vector (Value a)) where
 
 
 instance GDALType a => BG.Band Band s (Value a) t where
-  bandH (Band h) = h
+  bandH (Band (_,h)) = h
   {-# INLINE bandH #-}
 
-  fromBandH h    = Band h
+  fromBandH h    = Band (bandDataTypeH h, h)
   {-# INLINE fromBandH #-}
 
 
@@ -255,12 +256,12 @@ instance GDALType a => BG.Band Band s (Value a) t where
                 liftIO $ do
                   mb <- bandMaskH (BG.bandH b)
                   St.unsafeWith m $ maskIO GF_Write mb b ix
-    where writeT vt = liftIO $ unsafeAsDataType (BG.bandDataType b) vt $
+    where writeT vt = liftIO $ unsafeAsDataType (bandDataType b) vt $
                       writeBlockH (BG.bandH b) ix
   {-# INLINE writeBlock #-}
 
-  blockLoader b@(Band bPtr) = do
-    vt <- liftIO $ newMVector (BG.bandDataType b) (BG.bandBlockLen b)
+  blockLoader b = do
+    vt <- liftIO $ newMVector (bandDataType b) (BG.bandBlockLen b)
     case BG.bandMaskType b of
       MaskNoData -> do
         noData <- noDataOrFail b
@@ -271,13 +272,14 @@ instance GDALType a => BG.Band Band s (Value a) t where
         return (MVector uvec, loadVt vt)
       _ -> do
         maskBuf <- liftIO $ M.replicate (BG.bandBlockLen b) 0
-        mbh <- liftIO $ bandMaskH bPtr
+        mbh <- liftIO $ bandMaskH (BG.bandH b)
         let uvec = newWithMaskM maskBuf vt
         return ( MVector uvec, \ix -> do
                   loadVt vt ix
                   liftIO $ Stm.unsafeWith maskBuf $ maskIO GF_Read mbh b ix)
     where loadVt v ix = liftIO $ unsafeAsNativeM v $
-                                const (inline readBlockH bPtr ix)
+                                const (inline readBlockH (BG.bandH b) ix)
+          {-# INLINE loadVt #-}
   {-# INLINE blockLoader #-}
 
 maskIO
@@ -314,6 +316,10 @@ bandCount = BG.bandCount
 {-# INLINE bandCount #-}
 
 
+isNative :: forall s a t. GDALType a => Band s (Value a) t -> Bool
+isNative (Band (d,_)) = dataType (undefined :: a) == d
+{-# INLINE isNative #-}
+
 getBand :: GDALType a => Int -> Dataset s t -> GDAL s (Band s (Value a) t)
 getBand = BG.getBand
 {-# INLINE getBand #-}
@@ -331,7 +337,7 @@ fillBand = BG.fillBand
 {-# INLINE fillBand #-}
 
 bandDataType :: GDALType a => Band s (Value a) t -> DataType
-bandDataType = BG.bandDataType
+bandDataType (Band (d,_)) = d
 {-# INLINE bandDataType #-}
 
 bandBlockSize :: GDALType a => Band s (Value a) t -> Size
@@ -364,15 +370,15 @@ bandTypedAs = BG.bandTypedAs
 {-# INLINE bandTypedAs #-}
 
 bandNodataValue :: GDALType a => Band s (Value a) t -> GDAL s (Maybe a)
-bandNodataValue (Band b) =
-  liftM (fmap fromDouble) (liftIO (bandNodataValueAsDouble b))
+bandNodataValue =
+  liftM (fmap fromDouble) . liftIO . bandNodataValueAsDouble . BG.bandH
 {-# INLINE bandNodataValue #-}
 
 setBandNodataValue
   :: GDALType a
   => Band s (Value a) ReadWrite -> a -> GDAL s ()
-setBandNodataValue (Band b) =
-  liftIO . setBandNodataValueAsDouble b . toDouble
+setBandNodataValue b =
+  liftIO . setBandNodataValueAsDouble (BG.bandH b) . toDouble
 {-# INLINE setBandNodataValue #-}
 
 createMaskBand
