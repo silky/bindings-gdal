@@ -19,7 +19,7 @@ module GDAL.Internal.DataType (
   , DataType (..)
 
   , sizeOfDataType
-  , convertGType
+  --, convertGType
 
   , newMVector
   , unsafeAsNative
@@ -80,6 +80,7 @@ import GHC.Int (Int16, Int32)
 import GHC.Base
 import GHC.Ptr (Ptr(..))
 
+import Unsafe.Coerce (unsafeCoerce)
 
 type DataType# = Int#
 
@@ -89,6 +90,9 @@ type DataType# = Int#
 class Eq a => GDALType a where
   dataType        :: a -> DataType
 
+  toDouble   :: a -> Double
+  fromDouble :: Double -> a
+
   gReadByteArray# :: DataType# -> MutableByteArray# s -> Int# -> State# s
                   -> (# State# s, a #)
   gWriteByteArray# :: DataType# -> MutableByteArray# s -> Int# -> a -> State# s
@@ -96,6 +100,7 @@ class Eq a => GDALType a where
   gIndexByteArray# :: DataType# -> ByteArray# -> Int# -> a
 
 
+{-
 convertGType :: forall a b. (GDALType a, GDALType b) => a -> b
 convertGType a = runST $ do
   MutableByteArray arr# <- newByteArray (sizeOfDataType dDt)
@@ -104,6 +109,7 @@ convertGType a = runST $ do
   where !(I# dDt#) = fromEnum dDt
         dDt        = dataType (undefined :: b)
 {-# INLINE convertGType #-}
+-}
 
 ------------------------------------------------------------------------------
 -- DataType
@@ -325,14 +331,18 @@ instance GDALType a => M.MVector TMVector a where
 ------------------------------------------------------------------------------
 
 data TVector a =
-  TVector { vLen      :: {-# UNPACK #-} !Int
-         , vOff      :: {-# UNPACK #-} !Int
-         , vDataType :: {-# UNPACK #-} !Int
-         , vData     :: {-# UNPACK #-} !ByteArray
-         }
+  TVector { vLen     :: {-# UNPACK #-} !Int
+          , vOff      :: {-# UNPACK #-} !Int
+          , vDataType :: {-# UNPACK #-} !Int
+          , vData     :: {-# UNPACK #-} !ByteArray
+          }
   deriving ( Typeable )
 
 type instance G.Mutable TVector = TMVector
+
+castTVector :: (GDALType a, GDALType b) => TVector a -> TVector b
+castTVector = unsafeCoerce
+{-# INLINE castTVector #-}
 
 instance GDALType a => G.Vector TVector a where
   {-# INLINE basicUnsafeFreeze #-}
@@ -428,15 +438,15 @@ maskValid, maskNoData :: Word8
 maskValid  = 255
 maskNoData = 0
 
-data Mask v a
+data Mask v
   = AllValid
   | Mask      (v Word8)
-  | UseNoData a
+  | UseNoData {-# UNPACK #-} !Double
 
-instance GDALType a => U.Unbox (Value a)
+instance (GDALType a) => U.Unbox (Value a)
 
 newtype instance U.Vector (Value a) =
-  MaskedVector (Mask St.Vector a, TVector a)
+  MaskedVector (Mask St.Vector, TVector a)
   deriving Typeable
 
 newWithMask
@@ -446,11 +456,12 @@ newWithMask mask values = MaskedVector (Mask mask, values)
 newAllValid :: TVector a -> U.Vector (Value a)
 newAllValid values = MaskedVector (AllValid, values)
 
-newWithNoData :: a -> TVector a -> U.Vector (Value a)
-newWithNoData a values = MaskedVector (UseNoData a, values)
+newWithNoData
+  :: (GDALType a) => a -> TVector a -> U.Vector (Value a)
+newWithNoData a values = MaskedVector (UseNoData (toDouble a), values)
 
 newtype instance U.MVector s (Value a) =
-  MaskedMVector (Mask (St.MVector s) a, TMVector s a)
+  MaskedMVector (Mask (St.MVector s), TMVector s a)
   deriving Typeable
 
 newWithMaskM
@@ -466,39 +477,45 @@ newAllValidM values = MaskedMVector (AllValid, values)
 {-# INLINE newAllValidM #-}
 
 newWithNoDataM
-  :: a -> TMVector s a -> U.MVector s (Value a)
-newWithNoDataM a values = MaskedMVector (UseNoData a, values)
+  :: (GDALType a)
+  => a -> TMVector s a -> U.MVector s (Value a)
+newWithNoDataM a values = MaskedMVector (UseNoData (toDouble a), values)
 
 {-# INLINE newWithNoDataM #-}
 
 
 toBaseVectorWithNoData
-  :: GDALType a => a -> U.Vector (Value a) -> TVector a
+  :: (GDALType a) => a -> U.Vector (Value a) -> TVector a
 toBaseVectorWithNoData nd v =
    (G.generate (G.length v) (fromValue nd . G.unsafeIndex v))
 
 toBaseVectorWithMask
-  :: GDALType a
+  :: (GDALType a, GDALType Double)
   => U.Vector (Value a) -> (St.Vector Word8, TVector a)
 toBaseVectorWithMask (MaskedVector (Mask m  , vs)) = (m, vs)
 toBaseVectorWithMask (MaskedVector (AllValid, vs)) =
   ((G.replicate (G.length vs) maskValid), vs)
 toBaseVectorWithMask (MaskedVector (UseNoData nd, vs)) =
   (G.generate (G.length vs)
-   (\i-> if vs `G.unsafeIndex` i==nd then maskNoData else maskValid), vs)
+   (\i-> if castTVector vs `G.unsafeIndex` i == nd
+            then maskNoData
+            else maskValid), vs)
 
-toBaseVector :: GDALType a => U.Vector (Value a) -> Maybe (TVector a)
+toBaseVector
+  :: (GDALType a, GDALType Double)
+  => U.Vector (Value a) -> Maybe (TVector a)
 toBaseVector (MaskedVector (AllValid, v)) = Just v
 toBaseVector (MaskedVector (UseNoData nd, v))
-  | G.any (==nd) v = Nothing
-  | otherwise      = Just v
+  | G.any (==nd) (castTVector v) = Nothing
+  | otherwise                       = Just v
 toBaseVector (MaskedVector (Mask m, v))
   | G.any (==maskNoData) m = Nothing
-  | otherwise              = Just ( v)
+  | otherwise              = Just  v
 
 
 
-instance (GDALType a, G.Vector TVector a) => G.Vector U.Vector (Value a) where
+instance (GDALType a, G.Vector TVector a)
+  => G.Vector U.Vector (Value a) where
   basicUnsafeFreeze (MaskedMVector (Mask x,v)) =
     liftM2 (\x' v' -> MaskedVector (Mask x',v'))
            (G.basicUnsafeFreeze x)
@@ -537,7 +554,7 @@ instance (GDALType a, G.Vector TVector a) => G.Vector U.Vector (Value a) where
      liftM Value (G.basicUnsafeIndexM v i)
   basicUnsafeIndexM (MaskedVector (UseNoData nd,v)) i = do
     val <- G.basicUnsafeIndexM v i
-    return (if val==nd then NoData else Value val)
+    return (if toDouble val==nd then NoData else Value val)
   {-# INLINE basicUnsafeIndexM #-}
 
 
@@ -571,7 +588,7 @@ instance (GDALType a, M.MVector TMVector a) =>
     liftM Value (inline M.basicUnsafeRead v i)
   basicUnsafeRead (MaskedMVector (UseNoData nd,v)) i = do
     val <- inline M.basicUnsafeRead v i
-    return (if val == nd then NoData else Value val)
+    return (if toDouble val == nd then NoData else Value val)
   {-# INLINE basicUnsafeRead #-}
 
   basicUnsafeWrite (MaskedMVector (Mask x,v)) i a
@@ -584,7 +601,7 @@ instance (GDALType a, M.MVector TMVector a) =>
                          "tried to write a nullValue in an AllValid vector")
     | otherwise = M.basicUnsafeWrite v i (fromValue unexpectedNull a)
   basicUnsafeWrite (MaskedMVector (UseNoData nd,v)) i a =
-    M.basicUnsafeWrite v i (fromValue nd a)
+    M.basicUnsafeWrite v i (fromValue (fromDouble nd) a)
   {-# INLINE basicUnsafeWrite #-}
 
 #if MIN_VERSION_vector(0,11,0)

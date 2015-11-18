@@ -132,8 +132,13 @@ deriveGDALType name typeQ gtypeQ toInt fromInt toReal fromReal toInt2 fromInt2
   j <- newName "j"
   dt <- newName "dt"
 
+  toDouble' <- toReal
+  fromDouble' <- fromReal
+
   let gInstClauses = concat arrayClauses ++ [
           ('dataType, Clause  [WildP] (NormalB (gtype)) [])
+        , ('toDouble, Clause  [] (NormalB (toDouble')) [])
+        , ('fromDouble, Clause  [] (NormalB (fromDouble')) [])
         ]
 
   let instanceGDALType =

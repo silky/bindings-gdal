@@ -365,14 +365,14 @@ bandTypedAs = BG.bandTypedAs
 
 bandNodataValue :: GDALType a => Band s (Value a) t -> GDAL s (Maybe a)
 bandNodataValue (Band b) =
-  liftM (fmap convertGType) (liftIO (bandNodataValueAsDouble b))
+  liftM (fmap fromDouble) (liftIO (bandNodataValueAsDouble b))
 {-# INLINE bandNodataValue #-}
 
 setBandNodataValue
   :: GDALType a
   => Band s (Value a) ReadWrite -> a -> GDAL s ()
 setBandNodataValue (Band b) =
-  liftIO . setBandNodataValueAsDouble b . convertGType
+  liftIO . setBandNodataValueAsDouble b . toDouble
 {-# INLINE setBandNodataValue #-}
 
 createMaskBand
