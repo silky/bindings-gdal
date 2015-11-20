@@ -36,6 +36,10 @@ library
                    , GDAL.Internal.Types.Vector.Masked
                    , GDAL.Internal.DataType
                    , GDAL.Internal.DataType.Instances
+                   , GDAL.Internal.DataType.Instances.Word
+                   , GDAL.Internal.DataType.Instances.Int
+                   , GDAL.Internal.DataType.Instances.Float
+                   , GDAL.Internal.DataType.Instances.Complex
                    , GDAL.Internal.Util
                    , GDAL.Internal.Common
                    , GDAL.Internal.CPLString

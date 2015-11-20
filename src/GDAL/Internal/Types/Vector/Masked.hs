@@ -322,6 +322,12 @@ instance (NFData (Elem a), NFData (ElemVector a))
   rnf (MaskedVector (UseNoData nd,v)) = rnf nd `seq` rnf v `seq` ()
   rnf (MaskedVector (AllValid,v)) = rnf v `seq` ()
 
+instance (NFData (Elem a), NFData (ElemMVector s a))
+  => NFData (MaskedMVector s a) where
+  rnf (MaskedMVector (Mask m,v)) = rnf m `seq` rnf v `seq` ()
+  rnf (MaskedMVector (UseNoData nd,v)) = rnf nd `seq` rnf v `seq` ()
+  rnf (MaskedMVector (AllValid,v)) = rnf v `seq` ()
+
 instance (G.Vector Vector a, Show a) => Show (Vector a) where
   showsPrec = G.showsPrec
 
@@ -409,7 +415,8 @@ deriveNullableVector name typeQ baseVectorQ = do
             [''NFData, ''Typeable]
         , NewtypeInstD [] ''MVector [s, type_]
           (NormalC mvName [ (NotStrict,
-              ConT ''MaskedMVector `AppT` s `AppT` type_)]) [''Typeable]
+              ConT ''MaskedMVector `AppT` s `AppT` type_)])
+            [''NFData, ''Typeable]
         ]
       (ConT _ `AppT` elemT) = type_
       elemQ     = return elemT
