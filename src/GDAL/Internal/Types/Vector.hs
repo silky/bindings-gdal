@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RankNTypes #-}
@@ -38,6 +39,11 @@ import GHC.Base
 import GHC.Int
 import GHC.Ptr (Ptr(..))
 import GHC.Word
+#if MIN_VERSION_vector(0,11,0)
+import qualified Data.Vector.Fusion.Bundle as Bundle
+#else
+import qualified Data.Vector.Fusion.Stream as Stream
+#endif
 
 import GDAL.Internal.Types.Pair (Pair)
 import GDAL.Internal.DataType hiding (Vector(..), MVector(..))
@@ -160,3 +166,51 @@ instance GDALType a => DT.Vector Vector a where
   gUnsafeWithDataType = unsafeWithDataType
   {-# INLINE gUnsafeWithDataType #-}
   {-# INLINE gUnsafeAsDataType #-}
+
+#if MIN_VERSION_vector(0,11,0)
+instance (GDALType a, Eq a) => Eq (Vector a) where
+  {-# INLINE (==) #-}
+  xs == ys = Bundle.eq (G.stream xs) (G.stream ys)
+
+  {-# INLINE (/=) #-}
+  xs /= ys = not (Bundle.eq (G.stream xs) (G.stream ys))
+
+instance (GDALType a, Ord a) => Ord (Vector a) where
+  {-# INLINE compare #-}
+  compare xs ys = Bundle.cmp (G.stream xs) (G.stream ys)
+
+  {-# INLINE (<) #-}
+  xs < ys = Bundle.cmp (G.stream xs) (G.stream ys) == LT
+
+  {-# INLINE (<=) #-}
+  xs <= ys = Bundle.cmp (G.stream xs) (G.stream ys) /= GT
+
+  {-# INLINE (>) #-}
+  xs > ys = Bundle.cmp (G.stream xs) (G.stream ys) == GT
+
+  {-# INLINE (>=) #-}
+  xs >= ys = Bundle.cmp (G.stream xs) (G.stream ys) /= LT
+#else
+instance (GDALType a, Eq a) => Eq (Vector a) where
+  {-# INLINE (==) #-}
+  xs == ys = Stream.eq (G.stream xs) (G.stream ys)
+
+  {-# INLINE (/=) #-}
+  xs /= ys = not (Stream.eq (G.stream xs) (G.stream ys))
+
+instance (GDALType a, Ord a) => Ord (Vector a) where
+  {-# INLINE compare #-}
+  compare xs ys = Stream.cmp (G.stream xs) (G.stream ys)
+
+  {-# INLINE (<) #-}
+  xs < ys = Stream.cmp (G.stream xs) (G.stream ys) == LT
+
+  {-# INLINE (<=) #-}
+  xs <= ys = Stream.cmp (G.stream xs) (G.stream ys) /= GT
+
+  {-# INLINE (>) #-}
+  xs > ys = Stream.cmp (G.stream xs) (G.stream ys) == GT
+
+  {-# INLINE (>=) #-}
+  xs >= ys = Stream.cmp (G.stream xs) (G.stream ys) /= LT
+#endif

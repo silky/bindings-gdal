@@ -35,7 +35,8 @@ module GDAL.Internal.DataType (
 
 #include "bindings.h"
 
-import Control.Exception (Exception(..))
+import Control.DeepSeq (NFData)
+import Control.Exception (Exception(..), throw)
 import Control.Monad.Primitive (PrimMonad(PrimState), RealWorld)
 
 import Data.Primitive.MachDeps
@@ -44,10 +45,13 @@ import Data.Proxy (Proxy(..))
 
 import qualified Data.Vector.Generic          as G
 import qualified Data.Vector.Generic.Mutable  as M
+import qualified Data.Vector.Storable         as St
+import qualified Data.Vector.Storable.Mutable as Stm
 
 import Language.Haskell.TH.Syntax (Lift)
 
-import Foreign.Ptr (Ptr)
+import Foreign.Ptr (Ptr, castPtr)
+import Foreign.Storable (Storable)
 
 
 import GDAL.Internal.CPLError (
@@ -55,7 +59,12 @@ import GDAL.Internal.CPLError (
   , bindingExceptionToException
   )
 import GDAL.Internal.Types.Pair (Pair)
-import GDAL.Internal.Types.Value (Masked(..))
+import GDAL.Internal.Types.Value (Value)
+import GDAL.Internal.Types.Vector.Masked (
+    Masked(..)
+  , BaseMVector
+  , NullableVector
+  )
 
 data DataTypeMismatch =
   DataTypeMismatch { rasterDt :: !DataType, expectedDt :: !DataType}
@@ -142,7 +151,11 @@ sizeOfDataType dt
 -- GDALType
 ------------------------------------------------------------------------------
 
-class (Masked a, Vector (BaseVector a) a) => GDALType a where
+class ( Masked a
+      , NullableVector (Value a)
+      , Vector (BaseVector a) a
+      , MVector (BaseMVector a) a
+      ) => GDALType a where
   dataType :: Proxy a -> DataType
 
   gToIntegral   :: Integral b => a -> b
@@ -173,4 +186,27 @@ class M.MVector v a => MVector v a where
 
 newtype DynType a = DynType { unDynType :: a}
   deriving ( Eq, Show, Enum, Bounded, Real, Num, Ord, Integral, Fractional
-           , RealFrac , RealFloat, Floating, Lift, Functor)
+           , RealFrac , RealFloat, Floating, Lift, Functor, NFData)
+
+instance (GDALType a, Storable a) => Vector St.Vector a where
+  gUnsafeAsDataType dt v f
+    | dt == dt' = St.unsafeWith v (f . castPtr)
+    | otherwise = throw (DataTypeMismatch{rasterDt=dt, expectedDt=dt'})
+    where dt' = dataType (Proxy :: Proxy a)
+  {-# INLINE gUnsafeAsDataType #-}
+
+  gUnsafeWithDataType v f = St.unsafeWith v (f dt . castPtr)
+    where dt = dataType (Proxy :: Proxy a)
+  {-# INLINE gUnsafeWithDataType #-}
+
+
+instance (GDALType a, Storable a) => MVector St.MVector a where
+  gNewAs dt i
+    | dt == dt' = Stm.new i
+    | otherwise = throw (DataTypeMismatch{rasterDt=dt, expectedDt=dt'})
+    where dt' = dataType (Proxy :: Proxy a)
+  {-# INLINE gNewAs #-}
+
+  gUnsafeWithDataTypeM v f = Stm.unsafeWith v (f dt . castPtr)
+    where dt = dataType (Proxy :: Proxy a)
+  {-# INLINE gUnsafeWithDataTypeM #-}

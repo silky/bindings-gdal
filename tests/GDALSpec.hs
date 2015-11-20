@@ -18,7 +18,7 @@ import Data.Proxy (Proxy(Proxy))
 import Data.String (fromString)
 import Data.Typeable (Typeable, typeOf)
 import Data.Word (Word8, Word16, Word32)
-import qualified Data.Vector.Unboxed as U
+import qualified Data.Vector.Generic as G
 
 import System.FilePath (joinPath)
 
@@ -209,19 +209,19 @@ spec = setupAndTeardown $ do
       ds <- createMem (XY 100 100) 1 gdtInt16 []
       band <- getBand 1 ds
       let len = bandBlockLen band
-          vec :: (U.Vector (Value Int16))
-          vec = U.generate len (Value . fromIntegral)
+          vec :: (Vector (Value Int16))
+          vec = G.generate len (Value . fromIntegral)
           bs  = bandBlockSize band
       writeBandBlock band 0 vec
       vec2 <- readBand (band `bandCoercedTo` (undefined::Double))
                        (Envelope 0 bs) bs
-      vec `shouldBe` U.map (fmap round) (vec2 :: U.Vector (Value Double))
+      vec `shouldBe` G.map (fmap round) (vec2 :: Vector (Value Double))
 
     it "can write and read band with automatic conversion" $ do
       ds <- createMem (XY 100 100) 1 gdtInt16 []
       band <- getBand 1 ds
-      let vec :: U.Vector (Value Double)
-          vec = U.generate 10000 (Value . fromIntegral)
+      let vec :: Vector (Value Double)
+          vec = G.generate 10000 (Value . fromIntegral)
       writeBand band (allBand band) (bandSize band) vec
       vec2 <- readBand band (allBand band) (bandSize band)
       vec `shouldBe` vec2
@@ -233,8 +233,8 @@ spec = setupAndTeardown $ do
           band <- getBand 1 =<< createMem (XY 100 100) 1 gdtInt16 []
           fillBand (Value value)  band
           v <- readBand band (allBand band) (bandSize band)
-          U.length v `shouldBe` 10000
-          let allEqual = U.foldl' f True v
+          G.length v `shouldBe` 10000
+          let allEqual = G.foldl' f True v
               f True (Value a) = a == value
               f _ _            = False
           allEqual `shouldBe` True
@@ -244,7 +244,7 @@ spec = setupAndTeardown $ do
         setBandNodataValue band (-999 :: Int16)
         fillBand NoData band
         v <- readBand band (allBand band) (bandSize band)
-        v `shouldSatisfy` (U.all isNoData)
+        v `shouldSatisfy` (G.all isNoData)
 
       withDir "can fill with NoData if createBandMask" $ \d -> do
         ds <- create "GTIFF" (joinPath [d, "test.tif"]) 100 1 gdtInt16 []
@@ -252,7 +252,7 @@ spec = setupAndTeardown $ do
         createBandMask band MaskPerDataset
         fillBand (NoData :: Value Int16) band
         v <- readBand band (allBand band) (bandSize band)
-        v `shouldSatisfy` (U.all isNoData)
+        v `shouldSatisfy` (G.all isNoData)
 
       it "cannot fill with NoData if no nodata value or mask has been set" $ do
         band <- getBand 1 =<< createMem (XY 100 100) 1 gdtInt16 []
@@ -262,8 +262,8 @@ spec = setupAndTeardown $ do
     it "can write and read block with automatic conversion with DynType" $ do
       ds <- createMem (XY 100 100) 1 gdtInt16 []
       band <- getBand 1 ds
-      let vec :: U.Vector (Value (DynType Double))
-          vec = U.generate (bandBlockLen band) (Value . fromIntegral)
+      let vec :: Vector (Value (DynType Double))
+          vec = G.generate (bandBlockLen band) (Value . fromIntegral)
       writeBandBlock band 0 vec
       vec2 <- readBandBlock band 0
       vec `shouldBe` vec2
@@ -271,8 +271,8 @@ spec = setupAndTeardown $ do
     it "cannot write and read block with automatic conversion without DynType" $ do
       ds <- createMem (XY 100 100) 1 gdtInt16 []
       band <- getBand 1 ds
-      let vec :: U.Vector (Value Double)
-          vec = U.generate (bandBlockLen band) (Value . fromIntegral)
+      let vec :: Vector (Value Double)
+          vec = G.generate (bandBlockLen band) (Value . fromIntegral)
       writeBandBlock band 0 vec `shouldThrow` \case
         DataTypeMismatch{expectedDt,rasterDt}
           | rasterDt==gdtInt16, expectedDt==gdtFloat64 -> True
@@ -487,17 +487,17 @@ it_can_write_and_read_band f = do
     it "all valid values" $ do
       ds <- createMem sz 1 (dataType (Proxy :: Proxy a)) []
       band <- getBand 1 ds
-      let vec = U.generate len f
+      let vec = G.generate len f
       writeBand band (allBand band) (bandSize band) vec
       flushCache ds
       vec2 <- readBand band (allBand band) (bandSize band)
-      U.length vec `shouldBe` U.length vec2
+      G.length vec `shouldBe` G.length vec2
       vec `shouldBe` vec2
 
     it "with nodata value" $ do
       ds <- createMem sz 1 (dataType (Proxy :: Proxy a)) []
       band <- getBand 1 ds
-      let vec = U.generate len (\i ->
+      let vec = G.generate len (\i ->
                   if i > len`div`2 && f i /= nd
                      then f i
                      else NoData)
@@ -506,19 +506,19 @@ it_can_write_and_read_band f = do
       writeBand band (allBand band) (bandSize band) vec
       flushCache ds
       vec2 <- readBand band (allBand band) (bandSize band)
-      U.length vec `shouldBe` U.length vec2
+      G.length vec `shouldBe` G.length vec2
       vec `shouldBe` vec2
 
     withDir "with mask" $ \d -> do
       let path = joinPath [d, "test.tif"]
       ds <- create "GTIFF" path sz 1 (dataType (Proxy :: Proxy a)) []
       band <- getBand 1 ds
-      let vec = U.generate len (\i -> if i < len`div`2 then f i else NoData)
+      let vec = G.generate len (\i -> if i < len`div`2 then f i else NoData)
       createBandMask band MaskPerBand
       writeBand band (allBand band) (bandSize band) vec
       flushCache ds
       vec2 <- readBand band (allBand band) (bandSize band)
-      U.length vec `shouldBe` U.length vec2
+      G.length vec `shouldBe` G.length vec2
       vec `shouldBe` vec2
 
 
@@ -536,18 +536,18 @@ it_can_write_and_read_block f = forM_ [[], [("TILED","YES")]] $ \options -> do
       let path = joinPath [d, "test.tif"]
       ds <- create "GTIFF" path sz 1 (dataType (Proxy :: Proxy a)) options
       band <- getBand 1 ds
-      let vec = U.generate (bandBlockLen band) f
+      let vec = G.generate (bandBlockLen band) f
       writeBandBlock band 0 vec
       flushCache ds
       vec2 <- readBandBlock band 0
-      U.length vec `shouldBe` U.length vec2
+      G.length vec `shouldBe` G.length vec2
       vec `shouldBe` vec2
 
     withDir "with nodata value" $ \d -> do
       let path = joinPath [d, "test.tif"]
       ds <- create "GTIFF" path sz 1 (dataType (Proxy :: Proxy a)) options
       band <- getBand 1 ds
-      let vec = U.generate len (\i ->
+      let vec = G.generate len (\i ->
                   if i > len`div`2 && f i /= nd
                      then f i
                      else NoData)
@@ -557,20 +557,20 @@ it_can_write_and_read_block f = forM_ [[], [("TILED","YES")]] $ \options -> do
       writeBandBlock band 0 vec
       flushCache ds
       vec2 <- readBandBlock band 0
-      U.length vec `shouldBe` U.length vec2
+      G.length vec `shouldBe` G.length vec2
       vec `shouldBe` vec2
 
     withDir "with mask" $ \d -> do
       let path = joinPath [d, "test.tif"]
       ds <- create "GTIFF" path sz 1 (dataType (Proxy :: Proxy a)) options
       band <- getBand 1 ds
-      let vec = U.generate len (\i -> if i > len`div`2 then f i else NoData)
+      let vec = G.generate len (\i -> if i > len`div`2 then f i else NoData)
           len = bandBlockLen band
       createBandMask band MaskPerBand
       writeBandBlock band 0 vec
       flushCache ds
       vec2 <- readBandBlock band 0
-      U.length vec `shouldBe` U.length vec2
+      G.length vec `shouldBe` G.length vec2
       vec `shouldBe` vec2
 
 it_can_foldl
@@ -588,39 +588,39 @@ it_can_foldl f f2 z = forM_ [[], [("TILED","YES")]] $ \options -> do
       let p = joinPath [tmpDir, "test.tif"]
           sz = XY 200 205
       ds <- create "GTIFF" p sz 1 (dataType (Proxy :: Proxy a)) options
-      let vec = U.generate (sizeLen sz) f
+      let vec = G.generate (sizeLen sz) f
       band <- getBand 1 ds
       writeBand band (allBand band) sz vec
       flushCache ds
       value <- GDAL.foldl' f2 z band
-      value `shouldBe` U.foldl' f2 z vec
+      value `shouldBe` G.foldl' f2 z vec
 
     withDir "with nodata value" $ \tmpDir -> do
       let p = joinPath [tmpDir, "test.tif"]
           sz = XY 200 205
           Value nodata = z
       ds <- create "GTIFF" p sz 1 (dataType (Proxy :: Proxy a)) options
-      let vec = U.imap (\i v -> if i>(sizeLen sz`div`2) then v else NoData)
-                       (U.generate (sizeLen sz) f)
+      let vec = G.imap (\i v -> if i>(sizeLen sz`div`2) then v else NoData)
+                       (G.generate (sizeLen sz) f)
       band <- getBand 1 ds
       setBandNodataValue band nodata
       writeBand band (allBand band) sz vec
       flushCache ds
       value <- GDAL.foldl' f2 z band
-      value `shouldBe` U.foldl' f2 z vec
+      value `shouldBe` G.foldl' f2 z vec
 
     withDir "with mask" $ \tmpDir -> do
       let p = joinPath [tmpDir, "test.tif"]
           sz = XY 200 205
       ds <- create "GTIFF" p sz 1 (dataType (Proxy :: Proxy a)) options
-      let vec = U.imap (\i v -> if i>(sizeLen sz`div`2) then v else NoData)
-                       (U.generate (sizeLen sz) f)
+      let vec = G.imap (\i v -> if i>(sizeLen sz`div`2) then v else NoData)
+                       (G.generate (sizeLen sz) f)
       band <- getBand 1 ds
       createBandMask band MaskPerBand
       writeBand band (allBand band) sz vec
       flushCache ds
       value <- GDAL.foldl' f2 z band
-      value `shouldBe` U.foldl' f2 z vec
+      value `shouldBe` G.foldl' f2 z vec
 
 infix 4 ~==
 (~==) :: (Fractional a, Ord a) => a -> a -> Bool

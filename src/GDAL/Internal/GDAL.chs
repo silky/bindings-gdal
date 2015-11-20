@@ -20,6 +20,10 @@
 
 module GDAL.Internal.GDAL (
     GDALRasterException (..)
+  , GDALType (..)
+  , DataTypeMismatch (..)
+  , DataType
+  , DynType (..)
   , Geotransform (..)
   , OverviewResampling (..)
   , Driver (..)
@@ -32,6 +36,8 @@ module GDAL.Internal.GDAL (
   , Band
   , RasterBandH (..)
   , MaskType (..)
+  , MV.Vector
+  , MV.MVector
 
   , northUpGeotransform
   , gcpGeotransform
@@ -111,7 +117,18 @@ module GDAL.Internal.GDAL (
   , newDatasetHandle
   , openDatasetCount
 
-  , module DT
+  , gdtByte
+  , gdtUInt16
+  , gdtUInt32
+  , gdtInt16
+  , gdtInt32
+  , gdtFloat32
+  , gdtFloat64
+  , gdtCInt16
+  , gdtCInt32
+  , gdtCFloat32
+  , gdtCFloat64
+  , gdtUnknown
 ) where
 
 {#context lib = "gdal" prefix = "GDAL" #}
@@ -132,10 +149,8 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Typeable (Typeable)
 import qualified Data.Vector.Generic         as G
+import qualified Data.Vector.Generic.Mutable as M
 import qualified Data.Vector.Storable        as St
-import qualified Data.Vector.Generic.Mutable as GM
-import qualified Data.Vector.Unboxed.Mutable as UM
-import qualified Data.Vector.Unboxed         as U
 import Data.Word (Word8)
 
 import Foreign.C.String (withCString, CString)
@@ -152,6 +167,7 @@ import System.IO.Unsafe (unsafePerformIO)
 
 import GDAL.Internal.Types
 import GDAL.Internal.Types.Value
+import GDAL.Internal.Types.Vector.Masked as MV
 import GDAL.Internal.DataType as DT
 import GDAL.Internal.DataType.Instances ()
 import GDAL.Internal.Common
@@ -669,21 +685,21 @@ readBand :: forall s t a. GDALType a
   => (Band s a t)
   -> Envelope Int
   -> Size
-  -> GDAL s (U.Vector (Value a))
+  -> GDAL s (MV.Vector (Value a))
 readBand band win (XY bx by) =
   bandMaskType band >>= \case
     MaskNoData ->
-      liftM2 mkValueUVector (noDataOrFail band) (read_ band)
+      liftM2 newWithNoData (noDataOrFail band) (read_ band)
     MaskAllValid ->
-      liftM mkAllValidValueUVector (read_ band)
+      liftM newAllValid (read_ band)
     _ ->
-      liftM2 mkMaskedValueUVector (read_ =<< bandMask band) (read_ band)
+      liftM2 newWithMask (read_ =<< bandMask band) (read_ band)
   where
     XY sx sy     = envelopeSize win
     XY xoff yoff = envelopeMin win
     read_ :: forall v a'. DT.Vector v a' => Band s a' t -> GDAL s (v a')
     read_ b = liftIO $ do
-      vec <- GM.new (bx*by)
+      vec <- M.new (bx*by)
       gUnsafeWithDataTypeM vec $ \dtype ptr -> do
         checkCPLError "RasterAdviseRead" $
           {#call unsafe RasterAdviseRead as ^#}
@@ -719,18 +735,18 @@ writeMasked
   => RWBand s a
   -> (RWBand s a -> BaseVector a a -> GDAL s ())
   -> (RWBand s Word8 -> St.Vector Word8 -> GDAL s ())
-  -> U.Vector (Value a)
+  -> MV.Vector (Value a)
   -> GDAL s ()
 writeMasked band writer maskWriter uvec =
   bandMaskType band >>= \case
     MaskNoData ->
-      noDataOrFail band >>= writer band . flip toGVecWithNodata uvec
+      noDataOrFail band >>= writer band . flip toBaseVectorWithNoData uvec
     MaskAllValid ->
       maybe (throwBindingException BandDoesNotAllowNoData)
             (writer band)
-            (toGVec uvec)
+            (toBaseVector uvec)
     _ ->
-      let (mask, vec) = toGVecWithMask uvec
+      let (mask, vec) = toBaseVectorWithMask uvec
       in writer band vec >> bandMask band >>= flip maskWriter mask
 
 noDataOrFail :: GDALType a => Band s a t -> GDAL s a
@@ -777,7 +793,7 @@ writeBand
   => RWBand s a
   -> Envelope Int
   -> Size
-  -> U.Vector (Value a)
+  -> MV.Vector (Value a)
   -> GDAL s ()
 writeBand band win sz@(XY bx by) = writeMasked band write write
   where
@@ -853,7 +869,7 @@ ifoldlM' f initialAcc band = mkBlockLoader band >>= ifoldlM_loop
           where
             go !sPEC2 !i !j !acc'
               | i   < stopx = do
-                  !v <- liftIO (UM.unsafeRead vec (j*sx+i))
+                  !v <- liftIO (M.unsafeRead vec (j*sx+i))
                   f acc' ix v >>= go sPEC2 (i+1) j
               | j+1 < stopy = go sPEC2 0 (j+1) acc'
               | otherwise   = return acc'
@@ -868,7 +884,7 @@ ifoldlM' f initialAcc band = mkBlockLoader band >>= ifoldlM_loop
 
 writeBandBlock
   :: forall s a. GDALType a
-  => RWBand s a -> BlockIx  -> U.Vector (Value a) -> GDAL s ()
+  => RWBand s a -> BlockIx  -> MV.Vector (Value a) -> GDAL s ()
 writeBandBlock band blockIx uvec = do
   when (bandBlockLen band /= len) $
     throwBindingException (InvalidBlockSize len)
@@ -913,7 +929,7 @@ writeBandBlock band blockIx uvec = do
 
 readBandBlock
   :: forall s t a. GDALType a
-  => Band s a t -> BlockIx -> GDAL s (U.Vector (Value a))
+  => Band s a t -> BlockIx -> GDAL s (MV.Vector (Value a))
 readBandBlock band blockIx = do
   (load, vec) <- mkBlockLoader band
   load blockIx
@@ -924,20 +940,20 @@ readBandBlock band blockIx = do
 mkBlockLoader
   :: forall s t a. GDALType a
   => Band s a t
-  -> GDAL s (BlockIx -> GDAL s (), UM.IOVector (Value a))
+  -> GDAL s (BlockIx -> GDAL s (), MV.IOVector (Value a))
 mkBlockLoader band = do
   buf <- liftIO $ gNewAs (bandDataType band) len
   bandMaskType band >>= \case
     MaskNoData -> do
       noData <- noDataOrFail band
-      return (blockLoader buf, mkValueUMVector noData buf)
+      return (blockLoader buf, newWithNoDataM noData buf)
     MaskAllValid ->
-      return (blockLoader buf, mkAllValidValueUMVector buf)
+      return (blockLoader buf, newAllValidM buf)
     _ -> do
-      maskBuf <- liftIO $ GM.replicate len 0
+      maskBuf <- liftIO $ M.replicate len 0
       mask <- bandMask band
       return ( maskedBlockLoader mask maskBuf (blockLoader buf)
-             , mkMaskedValueUMVector maskBuf buf)
+             , newWithMaskM maskBuf buf)
   where
     len = bandBlockLen band
 

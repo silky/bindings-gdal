@@ -1,31 +1,29 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE UndecidableInstances #-} -- FIXME
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module GDAL.Internal.DataType.Instances () where
 
-import GDAL.Internal.Types.Value (Masked(..))
+import GDAL.Internal.Types.Value (Value)
+import GDAL.Internal.Types.Vector.Masked (deriveNullableVector)
 import qualified GDAL.Internal.Types.Vector as GV
 import GDAL.Internal.Types.Pair (Pair(..))
 import GDAL.Internal.DataType
 
 import Control.Arrow ((&&&))
-import Control.Exception (throw)
-import Control.Monad.Primitive (PrimMonad(PrimState), RealWorld)
 
 import Data.Int (Int8, Int16, Int32)
 import Data.Proxy (Proxy(Proxy))
 import qualified Data.Vector.Storable         as St
-import qualified Data.Vector.Storable.Mutable as Stm
 import Data.Word (Word8, Word16, Word32)
 
-import Foreign.Ptr (Ptr, castPtr)
-import Foreign.Storable (Storable)
-
-import GHC.Exts (inline)
 
 #if MIN_VERSION_base(4,8,0)
 import Data.Complex (Complex((:+)), realPart, imagPart)
@@ -37,59 +35,8 @@ imagPart (_ :+ a) = a
 #endif
 
 
-unsafeAsDataType
-  :: forall a b. (GDALType a, Storable a)
-  => DataType -> St.Vector a  -> (Ptr () -> IO b) -> IO b
-unsafeAsDataType dt v f
-  | dt == dt' = St.unsafeWith v (f . castPtr)
-  | otherwise = throw (DataTypeMismatch{rasterDt=dt, expectedDt=dt'})
-  where dt' = dataType (Proxy :: Proxy a)
-{-# INLINE unsafeAsDataType #-}
-
-unsafeWithDataType
-  :: forall a b. (GDALType a, Storable a)
-  =>  St.Vector a -> (DataType -> Ptr () -> IO b) -> IO b
-unsafeWithDataType v f = St.unsafeWith v (f dt . castPtr)
-  where dt = dataType (Proxy :: Proxy a)
-{-# INLINE unsafeWithDataType #-}
 
 
-newAs
-  :: forall m a. (GDALType a, Storable a, PrimMonad m)
-  => DataType -> Int  -> m (St.MVector (PrimState m) a)
-newAs dt i
-  | dt == dt' = Stm.new i
-  | otherwise = throw (DataTypeMismatch{rasterDt=dt, expectedDt=dt'})
-  where dt' = dataType (Proxy :: Proxy a)
-{-# INLINE newAs #-}
-
-unsafeWithDataTypeM
-  :: forall a b. (GDALType a, Storable a)
-  => St.MVector RealWorld a -> (DataType -> Ptr () -> IO b) -> IO b
-unsafeWithDataTypeM v f = Stm.unsafeWith v (f dt . castPtr)
-  where dt = dataType (Proxy :: Proxy a)
-{-# INLINE unsafeWithDataTypeM #-}
-
-
-
-
-#define maskedStVec(ty)\
-instance Masked (ty) where {\
-  type BaseMVector (ty) = St.MVector\
-; type BaseVector (ty)  = St.Vector\
-};\
-instance Vector St.Vector (ty) where {\
-  gUnsafeWithDataType = inline unsafeWithDataType\
-; gUnsafeAsDataType = inline unsafeAsDataType\
-; {-# INLINE gUnsafeWithDataType #-}\
-; {-# INLINE gUnsafeAsDataType #-}\
-};\
-instance MVector St.MVector (ty) where {\
-  gUnsafeWithDataTypeM = inline unsafeWithDataTypeM\
-; gNewAs = inline newAs\
-; {-# INLINE gUnsafeWithDataTypeM #-}\
-; {-# INLINE gNewAs #-}\
-};
 
 #define dynGType(ty)\
 instance GDALType (DynType (ty)) where {\
@@ -111,10 +58,6 @@ instance GDALType (DynType (ty)) where {\
 ; {-# INLINE gFromIntegralPair #-}\
 ; {-# INLINE gToRealPair       #-}\
 ; {-# INLINE gFromRealPair     #-}\
-};\
-instance Masked (DynType (ty)) where {\
-  type BaseMVector (DynType (ty)) = GV.MVector\
-; type BaseVector (DynType (ty))  = GV.Vector\
 };
 
 instance GDALType Word8 where
@@ -136,7 +79,8 @@ instance GDALType Word8 where
   {-# INLINE gFromIntegralPair #-}
   {-# INLINE gToRealPair       #-}
   {-# INLINE gFromRealPair     #-}
-maskedStVec(Word8)
+deriveNullableVector "Word8" [t|Value Word8|] [t|St.Vector|]
+deriveNullableVector "DynWord8" [t|Value (DynType Word8)|] [t|GV.Vector|]
 dynGType(Word8)
 
 
@@ -159,7 +103,8 @@ instance GDALType Word16 where
   {-# INLINE gFromIntegralPair #-}
   {-# INLINE gToRealPair       #-}
   {-# INLINE gFromRealPair     #-}
-maskedStVec(Word16)
+deriveNullableVector "Word16" [t|Value Word16|] [t|St.Vector|]
+deriveNullableVector "DynWord16" [t|Value (DynType Word16)|] [t|GV.Vector|]
 dynGType(Word16)
 
 instance GDALType Word32 where
@@ -181,7 +126,8 @@ instance GDALType Word32 where
   {-# INLINE gFromIntegralPair #-}
   {-# INLINE gToRealPair       #-}
   {-# INLINE gFromRealPair     #-}
-maskedStVec(Word32)
+deriveNullableVector "Word32" [t|Value Word32|] [t|St.Vector|]
+deriveNullableVector "DynWord32" [t|Value (DynType Word32)|] [t|GV.Vector|]
 dynGType(Word32)
 
 instance GDALType Int8 where
@@ -203,7 +149,8 @@ instance GDALType Int8 where
   {-# INLINE gFromIntegralPair #-}
   {-# INLINE gToRealPair       #-}
   {-# INLINE gFromRealPair     #-}
-maskedStVec(Int8)
+deriveNullableVector "Int8" [t|Value Int8|] [t|St.Vector|]
+deriveNullableVector "DynInt8" [t|Value (DynType Int8)|] [t|GV.Vector|]
 dynGType(Int8)
 
 instance GDALType Int16 where
@@ -225,7 +172,8 @@ instance GDALType Int16 where
   {-# INLINE gFromIntegralPair #-}
   {-# INLINE gToRealPair       #-}
   {-# INLINE gFromRealPair     #-}
-maskedStVec(Int16)
+deriveNullableVector "Int16" [t|Value Int16|] [t|St.Vector|]
+deriveNullableVector "DynInt16" [t|Value (DynType Int16)|] [t|GV.Vector|]
 dynGType(Int16)
 
 instance GDALType Int32 where
@@ -247,7 +195,8 @@ instance GDALType Int32 where
   {-# INLINE gFromIntegralPair #-}
   {-# INLINE gToRealPair       #-}
   {-# INLINE gFromRealPair     #-}
-maskedStVec(Int32)
+deriveNullableVector "Int32" [t|Value Int32|] [t|St.Vector|]
+deriveNullableVector "DynInt32" [t|Value (DynType Int32)|] [t|GV.Vector|]
 dynGType(Int32)
 
 instance GDALType Float where
@@ -269,7 +218,8 @@ instance GDALType Float where
   {-# INLINE gFromIntegralPair #-}
   {-# INLINE gToRealPair       #-}
   {-# INLINE gFromRealPair     #-}
-maskedStVec(Float)
+deriveNullableVector "Float" [t|Value Float|] [t|St.Vector|]
+deriveNullableVector "DynFloat" [t|Value (DynType Float)|] [t|GV.Vector|]
 dynGType(Float)
 
 instance GDALType Double where
@@ -291,7 +241,8 @@ instance GDALType Double where
   {-# INLINE gFromIntegralPair #-}
   {-# INLINE gToRealPair       #-}
   {-# INLINE gFromRealPair     #-}
-maskedStVec(Double)
+deriveNullableVector "Double" [t|Value Double|] [t|St.Vector|]
+deriveNullableVector "DynDouble" [t|Value (DynType Double)|] [t|GV.Vector|]
 dynGType(Double)
 
 instance GDALType (Complex Int16) where
@@ -314,12 +265,12 @@ instance GDALType (Complex Int16) where
   {-# INLINE gToRealPair       #-}
   {-# INLINE gFromRealPair     #-}
 #if MIN_VERSION_base(4,8,0)
-maskedStVec(Complex Int16)
+deriveNullableVector "ComplexInt16" [t|Value (Complex Int16)|] [t|St.Vector|]
 #else
-instance Masked (Complex Int16) where
-  type BaseMVector (Complex Int16) = GV.MVector
-  type BaseVector (Complex Int16)  = GV.Vector
+deriveNullableVector "ComplexInt16" [t|Value (Complex Int16)|] [t|GV.Vector|]
 #endif
+deriveNullableVector
+  "DynCInt16" [t|Value (DynType (Complex Int16))|] [t|GV.Vector|]
 dynGType(Complex Int16)
 
 
@@ -344,12 +295,12 @@ instance GDALType (Complex Int32) where
   {-# INLINE gToRealPair       #-}
   {-# INLINE gFromRealPair     #-}
 #if MIN_VERSION_base(4,8,0)
-maskedStVec(Complex Int32)
+deriveNullableVector "ComplexInt32" [t|Value (Complex Int32)|] [t|St.Vector|]
 #else
-instance Masked (Complex Int32) where
-  type BaseMVector (Complex Int32) = GV.MVector
-  type BaseVector (Complex Int32)  = GV.Vector
+deriveNullableVector "ComplexInt32" [t|Value (Complex Int32)|] [t|GV.Vector|]
 #endif
+deriveNullableVector
+  "DynCInt32" [t|Value (DynType (Complex Int32))|] [t|GV.Vector|]
 dynGType(Complex Int32)
 
 instance GDALType (Complex Float) where
@@ -372,12 +323,12 @@ instance GDALType (Complex Float) where
   {-# INLINE gToRealPair       #-}
   {-# INLINE gFromRealPair     #-}
 #if MIN_VERSION_base(4,8,0)
-maskedStVec(Complex Float)
+deriveNullableVector "ComplexFloat" [t|Value (Complex Float)|] [t|St.Vector|]
 #else
-instance Masked (Complex Float) where
-  type BaseMVector (Complex Float) = GV.MVector
-  type BaseVector (Complex Float)  = GV.Vector
+deriveNullableVector "ComplexFloat" [t|Value (Complex Float)|] [t|GV.Vector|]
 #endif
+deriveNullableVector
+  "DynCFloat" [t|Value (DynType (Complex Float))|] [t|GV.Vector|]
 dynGType(Complex Float)
 
 instance GDALType (Complex Double) where
@@ -400,10 +351,10 @@ instance GDALType (Complex Double) where
   {-# INLINE gToRealPair       #-}
   {-# INLINE gFromRealPair     #-}
 #if MIN_VERSION_base(4,8,0)
-maskedStVec(Complex Double)
+deriveNullableVector "ComplexDouble" [t|Value (Complex Double)|] [t|St.Vector|]
 #else
-instance Masked (Complex Double) where
-  type BaseMVector (Complex Double) = GV.MVector
-  type BaseVector (Complex Double)  = GV.Vector
+deriveNullableVector "ComplexDouble" [t|Value (Complex Double)|] [t|GV.Vector|]
 #endif
+deriveNullableVector
+  "DynCDouble" [t|Value (DynType (Complex Double))|] [t|GV.Vector|]
 dynGType(Complex Double)

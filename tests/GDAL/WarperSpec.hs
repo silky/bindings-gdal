@@ -5,7 +5,7 @@ module GDAL.WarperSpec (main, spec) where
 import Control.Monad (forM_)
 import Data.Default (def)
 import Data.Int (Int32)
-import qualified Data.Vector.Unboxed as U
+import qualified Data.Vector.Generic as G
 
 import GDAL
 import OSR
@@ -109,8 +109,8 @@ spec = setupAndTeardown $ do
         let sz  = XY 100 100
             sz2 = XY 200 200
             gt  = Geotransform 0 10 0 0 0 (-10)
-            v1 :: U.Vector (Value Int32)
-            v1  = U.generate (sizeLen sz)
+            v1 :: Vector (Value Int32)
+            v1  = G.generate (sizeLen sz)
                   (\i -> if i<50 then NoData else Value (fromIntegral i))
         ds' <- createMem sz 1 gdtInt32 []
         setDatasetGeotransform ds' gt
@@ -128,8 +128,8 @@ spec = setupAndTeardown $ do
         flushCache ds2
 
         v2 <- readBand b2 (allBand b2) sz2
-        v2 `shouldSatisfy` U.all (>(Value 0))
-        U.sum v2 `shouldBe` U.sum v1
+        v2 `shouldSatisfy` G.all (>(Value 0))
+        G.sum v2 `shouldBe` G.sum v1
 
   describe "createWarpedVRT" $ do
 
@@ -140,8 +140,8 @@ spec = setupAndTeardown $ do
           opts = def {woCutline=Just cl}
           sz  = XY 100 100
           sz2 = XY 200 200
-          v1 :: U.Vector (Value Int32)
-          v1  = U.generate (sizeLen sz)
+          v1 :: Vector (Value Int32)
+          v1  = G.generate (sizeLen sz)
                 (\i -> if i<50 then NoData else Value (fromIntegral i))
       ds' <- createMem sz 1 gdtInt32 []
       setDatasetGeotransform ds' gt
@@ -153,16 +153,16 @@ spec = setupAndTeardown $ do
       ds2 <- createWarpedVRT ds sz2 gt opts
       b2 <- getBand 1 ds2
       v2 <- readBand b2 (allBand b2) sz2
-      v2 `shouldSatisfy` U.all (> Value 0)
-      U.sum v2 `shouldSatisfy` (< U.sum v1)
+      v2 `shouldSatisfy` G.all (> Value 0)
+      G.sum v2 `shouldSatisfy` (< G.sum v1)
 
     forM_ resampleAlgorithmsWhichHandleNodata $ \algo ->
       it ("handles nodata (GenImgProjTransformer) " ++ show algo) $ do
         let sz  = XY 100 100
             sz2 = XY 200 200
             gt  = Geotransform 0 10 0 0 0 (-10)
-            v1 :: U.Vector (Value Int32)
-            v1  = U.generate (sizeLen sz)
+            v1 :: Vector (Value Int32)
+            v1  = G.generate (sizeLen sz)
                   (\i -> if i<50 then NoData else Value (fromIntegral i))
         ds' <- createMem sz 1 gdtInt32 []
         setDatasetGeotransform ds' gt
@@ -178,16 +178,16 @@ spec = setupAndTeardown $ do
         ds2 <- createWarpedVRT ds sz2 gt opts
         b2 <- getBand 1 ds2
         v2 <- readBand b2 (allBand b2) sz2
-        v2 `shouldSatisfy` U.all (>(Value 0))
-        U.sum v2 `shouldBe` U.sum v1
+        v2 `shouldSatisfy` G.all (>(Value 0))
+        G.sum v2 `shouldBe` G.sum v1
 
     forM_ resampleAlgorithmsWhichHandleNodata $ \algo ->
       it ("handles nodata (GenImgProjTransformer2) " ++ show algo) $ do
         let sz  = XY 100 100
             sz2 = XY 200 200
             gt  = Geotransform 0 10 0 0 0 (-10)
-            v1 :: U.Vector (Value Int32)
-            v1  = U.generate (sizeLen sz)
+            v1 :: Vector (Value Int32)
+            v1  = G.generate (sizeLen sz)
                   (\i -> if i<50 then NoData else Value (fromIntegral i))
         ds' <- createMem sz 1 gdtInt32 []
         setDatasetGeotransform ds' gt
@@ -202,8 +202,8 @@ spec = setupAndTeardown $ do
         ds2 <- createWarpedVRT ds sz2 gt opts
         b2 <- getBand 1 ds2
         v2 <- readBand b2 (allBand b2) sz2
-        v2 `shouldSatisfy` U.all (>(Value 0))
-        U.sum v2 `shouldBe` U.sum v1
+        v2 `shouldSatisfy` G.all (>(Value 0))
+        G.sum v2 `shouldBe` G.sum v1
 
 
     forM_ resampleAlgorithmsWhichHandleNodata $ \algo ->
@@ -211,8 +211,8 @@ spec = setupAndTeardown $ do
         let sz  = XY 100 100
             sz2 = XY 200 200
             gt  = Geotransform 0 10 0 0 0 (-10)
-            v1 :: U.Vector (Value Int32)
-            v1  = U.generate (sizeLen sz)
+            v1 :: Vector (Value Int32)
+            v1  = G.generate (sizeLen sz)
                   (\i -> if i<50 then NoData else Value (fromIntegral i))
         ds' <- createMem sz 1 gdtInt32 []
         setDatasetGeotransform ds' gt
@@ -227,8 +227,8 @@ spec = setupAndTeardown $ do
         ds2 <- createWarpedVRT ds sz2 gt opts
         b2 <- getBand 1 ds2
         v2 <- readBand b2 (allBand b2) sz2
-        v2 `shouldSatisfy` U.all (>(Value 0))
-        U.sum v2 `shouldBe` U.sum v1
+        v2 `shouldSatisfy` G.all (>(Value 0))
+        G.sum v2 `shouldBe` G.sum v1
 
 resampleAlgorithmsWhichHandleNodata :: [ResampleAlg]
 resampleAlgorithmsWhichHandleNodata

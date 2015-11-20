@@ -33,6 +33,7 @@ library
                    , GDAL.Internal.Types.Value
                    , GDAL.Internal.Types.Vector
                    , GDAL.Internal.Types.Vector.Mutable
+                   , GDAL.Internal.Types.Vector.Masked
                    , GDAL.Internal.DataType
                    , GDAL.Internal.DataType.Instances
                    , GDAL.Internal.Util

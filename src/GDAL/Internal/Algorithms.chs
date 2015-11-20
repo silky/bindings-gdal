@@ -52,7 +52,6 @@ import Data.Default (Default(..))
 import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Typeable (Typeable)
-import qualified Data.Vector.Unboxed as U
 import qualified Data.Vector.Generic as G
 import qualified Data.Vector.Generic.Mutable as GM
 import qualified Data.Vector.Storable as St
@@ -78,6 +77,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import GDAL.Internal.Util (fromEnumC)
 import GDAL.Internal.Types
 import GDAL.Internal.Types.Value
+import qualified GDAL.Internal.Types.Vector.Masked as MV
 import GDAL.Internal.DataType
 {#import GDAL.Internal.CPLString#}
 {#import GDAL.Internal.OSR #}
@@ -288,7 +288,7 @@ rasterizeLayersBuf
   -> SpatialReference
   -> Size
   -> Geotransform
-  -> OGR s l (U.Vector (Value a))
+  -> OGR s l (MV.Vector (Value a))
 rasterizeLayersBuf getLayers mTransformer nodataValue
                    burnValue options progressFun
                    srs size geotransform =
@@ -307,7 +307,7 @@ rasterizeLayersBuf getLayers mTransformer nodataValue
         (castPtr vecPtr) nx ny (fromEnumC dt) 0 0 (fromIntegral len)
         lPtrPtr srsPtr (castPtr gt) trans
         tArg bValue opts pFun nullPtr
-    liftM (mkValueUVector nodataValue) (G.unsafeFreeze vec)
+    liftM (MV.newWithNoData nodataValue) (G.unsafeFreeze vec)
   where
     bValue    = gToReal burnValue
     XY nx ny  = fmap fromIntegral size
@@ -333,7 +333,7 @@ createGridIO
   -> St.Vector GridPoint
   -> EnvelopeReal
   -> Size
-  -> IO (U.Vector (Value Double))
+  -> IO (MV.Vector (Value Double))
 createGridIO options noDataVal progressFun points envelope size =
   withProgressFun "createGridIO" progressFun $ \pFun ->
   withErrorHandler $
@@ -365,7 +365,7 @@ createGridIO options noDataVal progressFun points envelope size =
         pOut
         pFun
         nullPtr
-    liftM (mkValueUVector noDataVal) (G.unsafeFreeze out)
+    liftM (MV.newWithNoData noDataVal) (G.unsafeFreeze out)
   where
     XY nx ny                       = fmap fromIntegral size
     Envelope (XY x0 y0) (XY x1 y1) = fmap realToFrac envelope
@@ -379,7 +379,7 @@ createGrid
   -> St.Vector GridPoint
   -> EnvelopeReal
   -> Size
-  -> Either GDALException (U.Vector (Value Double))
+  -> Either GDALException (MV.Vector (Value Double))
 createGrid options noDataVal points envelope =
   unsafePerformIO .
   try .

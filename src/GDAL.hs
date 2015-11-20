@@ -2,7 +2,6 @@ module GDAL (
     GDAL
   , GDALType
   , ApproxOK (..)
-  , Masked (..)
   , DataType
   , DynType (..)
   , gdtByte
@@ -23,6 +22,8 @@ module GDAL (
   , BlockIx
 
   , GDALException (..)
+  , Vector
+  , MVector
   , GDALRasterException (..)
   , DataTypeMismatch (..)
   , ProgressException (..)
